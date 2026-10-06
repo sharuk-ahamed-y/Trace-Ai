@@ -1,0 +1,64 @@
+# ==============================================================================
+# Transformation-Aware Image Provenance Graph Reconstruction — .gitignore
+# Prevents uploading copyrighted images, trained binaries, & environment files
+# ==============================================================================
+
+# ── User & Generated Images (Copyright Protection) ───────────────────────────
+data/originals/*
+!data/originals/.gitkeep
+
+data/generated/*
+!data/generated/.gitkeep
+
+data/labels/*
+!data/labels/.gitkeep
+
+# Ignore any loose image files in root or data
+*.jpg
+*.jpeg
+*.png
+*.bmp
+*.webp
+*.tiff
+
+# ── Trained Model Binaries & Caches ───────────────────────────────────────────
+models/*
+!models/.gitkeep
+*.pt
+*.pth
+*.pkl
+
+# ── Output Graphs & Reports ───────────────────────────────────────────────────
+outputs/*
+!outputs/.gitkeep
+*.csv
+*.json
+
+# ── Python & Environment ──────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environment
+.venv/
+venv/
+ENV/
+env/
+
+# IDE & Editor settings
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+# Node / JS
+node_modules/
+frontend/node_modules/
+
+# Zip / Archives
+*.zip
+
+# Database
+*.db
+

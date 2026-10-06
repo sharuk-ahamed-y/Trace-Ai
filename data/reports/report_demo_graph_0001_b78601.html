@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>TRACEAI — Image Provenance Forensic Report (demo_graph_0001_b78601)</title>
+    <style>
+        :root {
+            --bg-dark: #050505;
+            --card-bg: #0A0D14;
+            --border-color: #1E293B;
+            --neon-green: #00FF88;
+            --text-main: #E2E8F0;
+            --text-muted: #94A3B8;
+        }
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 40px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .header {
+            border-bottom: 2px solid var(--neon-green);
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 {
+            color: var(--neon-green);
+            margin: 0;
+            font-size: 28px;
+            letter-spacing: 1px;
+        }
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        .meta-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 15px;
+            border-radius: 8px;
+        }
+        .meta-card .label {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+        .meta-card .val {
+            font-size: 20px;
+            font-weight: bold;
+            color: var(--neon-green);
+            margin-top: 5px;
+        }
+        .section-title {
+            color: var(--neon-green);
+            border-left: 4px solid var(--neon-green);
+            padding-left: 10px;
+            font-size: 20px;
+            margin-top: 40px;
+            margin-bottom: 15px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--card-bg);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 30px;
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+        th {
+            background-color: #0F172A;
+            color: var(--neon-green);
+            font-size: 13px;
+            text-transform: uppercase;
+        }
+        .badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        .badge-root { background: #00FF88; color: #000; }
+        .badge-derived { background: #3B82F6; color: #fff; }
+        .badge-transform { background: #8B5CF6; color: #fff; }
+        .image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        .image-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+        }
+        .xai-box {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .evidence-list {
+            color: var(--text-muted);
+            padding-left: 20px;
+        }
+        .footer {
+            margin-top: 60px;
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-muted);
+            border-top: 1px solid var(--border-color);
+            padding-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1>TRACEAI FORENSIC REPORT</h1>
+                <p style="margin: 5px 0 0 0; color: var(--text-muted);">Image Provenance Graph & Transformation Analysis</p>
+            </div>
+            <div style="text-align: right;">
+                <p style="margin:0; font-weight:bold;">ID: demo_graph_0001_b78601</p>
+                <p style="margin:0; font-size:12px; color:var(--text-muted);">2026-10-05T21:11:05.778320</p>
+            </div>
+        </div>
+
+        <div class="meta-grid">
+            <div class="meta-card">
+                <div class="label">Total Images</div>
+                <div class="val">11</div>
+            </div>
+            <div class="meta-card">
+                <div class="label">Identified Root Node</div>
+                <div class="val">original_0001</div>
+            </div>
+            <div class="meta-card">
+                <div class="label">Root Confidence</div>
+                <div class="val">98.0%</div>
+            </div>
+            <div class="meta-card">
+                <div class="label">Execution Time</div>
+                <div class="val">5519 ms</div>
+            </div>
+        </div>
+
+        <div class="section-title">Reconstructed Provenance Graph Edges</div>
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Source (Parent)</th>
+                    <th>Target (Child)</th>
+                    <th>Transformation</th>
+                    <th>Confidence</th>
+                    <th>Weight</th>
+                </tr>
+            </thead>
+            <tbody>
+                
+        <tr>
+            <td>1</td>
+            <td><code>img_0001_gen3_n11</code></td>
+            <td><code>img_0001_gen3_n10</code></td>
+            <td><span class="badge badge-transform">BLUR</span></td>
+            <td>98.8%</td>
+            <td>0.0125</td>
+        </tr>
+        
+        <tr>
+            <td>2</td>
+            <td><code>img_0001_gen3_n11</code></td>
+            <td><code>img_0001_gen3_n09</code></td>
+            <td><span class="badge badge-transform">BLUR</span></td>
+            <td>98.3%</td>
+            <td>0.0171</td>
+        </tr>
+        
+        <tr>
+            <td>3</td>
+            <td><code>img_0001_gen3_n10</code></td>
+            <td><code>img_0001_gen3_n09</code></td>
+            <td><span class="badge badge-transform">BLUR</span></td>
+            <td>98.2%</td>
+            <td>0.0179</td>
+        </tr>
+        
+        <tr>
+            <td>4</td>
+            <td><code>img_0001_gen3_n09</code></td>
+            <td><code>img_0001_gen2_n05</code></td>
+            <td><span class="badge badge-transform">BLUR</span></td>
+            <td>93.1%</td>
+            <td>0.0687</td>
+        </tr>
+        
+        <tr>
+            <td>5</td>
+            <td><code>img_0001_gen3_n11</code></td>
+            <td><code>img_0001_gen2_n05</code></td>
+            <td><span class="badge badge-transform">BLUR</span></td>
+            <td>92.4%</td>
+            <td>0.0758</td>
+        </tr>
+        
+        <tr>
+            <td>6</td>
+            <td><code>img_0001_gen3_n10</code></td>
+            <td><code>img_0001_gen2_n05</code></td>
+            <td><span class="badge badge-transform">BLUR</span></td>
+            <td>92.2%</td>
+            <td>0.0775</td>
+        </tr>
+        
+        <tr>
+            <td>7</td>
+            <td><code>img_0001_gen3_n10</code></td>
+            <td><code>img_0001_gen3_n06</code></td>
+            <td><span class="badge badge-transform">PERSPECTIVE</span></td>
+            <td>90.7%</td>
+            <td>0.0932</td>
+        </tr>
+        
+        <tr>
+            <td>8</td>
+            <td><code>img_0001_gen3_n11</code></td>
+            <td><code>img_0001_gen3_n06</code></td>
+            <td><span class="badge badge-transform">PERSPECTIVE</span></td>
+            <td>90.4%</td>
+            <td>0.0964</td>
+        </tr>
+        
+        <tr>
+            <td>9</td>
+            <td><code>img_0001_gen3_n09</code></td>
+            <td><code>img_0001_gen3_n06</code></td>
+            <td><span class="badge badge-transform">BRIGHTNESS</span></td>
+            <td>88.4%</td>
+            <td>0.1157</td>
+        </tr>
+        
+        <tr>
+            <td>10</td>
+            <td><code>img_0001_gen2_n03</code></td>
+            <td><code>img_0001_gen1_n02</code></td>
+            <td><span class="badge badge-transform">PERSPECTIVE</span></td>
+            <td>63.4%</td>
+            <td>0.3657</td>
+        </tr>
+        
+        <tr>
+            <td>11</td>
+            <td><code>original_0001</code></td>
+            <td><code>img_0001_gen1_n02</code></td>
+            <td><span class="badge badge-transform">PERSPECTIVE</span></td>
+            <td>63.3%</td>
+            <td>0.3665</td>
+        </tr>
+        
+        <tr>
+            <td>12</td>
+            <td><code>original_0001</code></td>
+            <td><code>img_0001_gen2_n03</code></td>
+            <td><span class="badge badge-transform">PERSPECTIVE</span></td>
+            <td>63.2%</td>
+            <td>0.3682</td>
+        </tr>
+        
+        <tr>
+            <td>13</td>
+            <td><code>img_0001_gen2_n04</code></td>
+            <td><code>img_0001_gen2_n03</code></td>
+            <td><span class="badge badge-transform">PERSPECTIVE</span></td>
+            <td>62.2%</td>
+            <td>0.3781</td>
+        </tr>
+        
+        <tr>
+            <td>14</td>
+            <td><code>original_0001</code></td>
+            <td><code>img_0001_gen2_n04</code></td>
+            <td><span class="badge badge-transform">PERSPECTIVE</span></td>
+            <td>62.1%</td>
+            <td>0.3788</td>
+        </tr>
+        
+        <tr>
+            <td>15</td>
+            <td><code>img_0001_gen2_n04</code></td>
+            <td><code>img_0001_gen1_n02</code></td>
+            <td><span class="badge badge-transform">PERSPECTIVE</span></td>
+            <td>61.8%</td>
+            <td>0.3824</td>
+        </tr>
+        
+            </tbody>
+        </table>
+
+        <div class="section-title">Image Node Metadata</div>
+        <div class="image-grid">
+            
+        <div class="image-card">
+            <div class="card-header">
+                <span class="node-id">img_0001_gen1_n02.jpg</span>
+                <span class="badge badge-derived">DERIVED</span>
+            </div>
+            <div class="card-body">
+                <p><strong>Dimensions:</strong> 512 x 512 px</p>
+                <p><strong>File Size:</strong> 6.8 KB</p>
+                <p><strong>SHA256:</strong> <small>bc2f041f6ffe34c6...</small></p>
+                <p><strong>MD5:</strong> <small>09eab55176091172d8aa3bb0df4d5bf4</small></p>
+            </div>
+        </div>
+        
+        <div class="image-card">
+            <div class="card-header">
+                <span class="node-id">img_0001_gen2_n03.jpg</span>
+                <span class="badge badge-derived">DERIVED</span>
+            </div>
+            <div class="card-body">
+                <p><strong>Dimensions:</strong> 512 x 512 px</p>
+                <p><strong>File Size:</strong> 6.9 KB</p>
+                <p><strong>SHA256:</strong> <small>d3dedfdd5b006d83...</small></p>
+                <p><strong>MD5:</strong> <small>ff866aee41e1dc9d72b9274521fea9ef</small></p>
+            </div>
+        </div>
+        
+        <div class="image-card">
+            <div class="card-header">
+                <span class="node-id">img_0001_gen2_n04.jpg</span>
+                <span class="badge badge-derived">DERIVED</span>
+            </div>
+            <div class="card-body">
+                <p><strong>Dimensions:</strong> 512 x 512 px</p>
+                <p><strong>File Size:</strong> 7.3 KB</p>
+                <p><strong>SHA256:</strong> <small>5b739d0f143281bc...</small></p>
+                <p><strong>MD5:</strong> <small>8bed37134f17685dcad8ef8cf2b40fbf</small></p>
+            </div>
+        </div>
+        
+        <div class="image-card">
+            <div class="card-header">
+                <span class="node-id">img_0001_gen2_n05.jpg</span>
+                <span class="badge badge-derived">DERIVED</span>
+            </div>
+            <div class="card-body">
+                <p><strong>Dimensions:</strong> 512 x 512 px</p>
+                <p><strong>File Size:</strong> 42.5 KB</p>
+                <p><strong>SHA256:</strong> <small>991b0568e2dbaaba...</small></p>
+                <p><strong>MD5:</strong> <small>c5f83df09a81c357a6e37c4f31d75863</small></p>
+            </div>
+        </div>
+        
+        <div class="image-card">
+            <div class="card-header">
+                <span class="node-id">img_0001_gen3_n06.jpg</span>
+                <span class="badge badge-derived">DERIVED</span>
+            </div>
+            <div class="card-body">
+                <p><strong>Dimensions:</strong> 512 x 512 px</p>
+                <p><strong>File Size:</strong> 68.1 KB</p>
+                <p><strong>SHA256:</strong> <small>b5f5870361f96ccb...</small></p>
+                <p><strong>MD5:</strong> <small>3b59bc1646c2cbed0c57742230d48247</small></p>
+            </div>
+        </div>
+        
+        <div class="image-card">
+            <div class="card-header">
+                <span class="node-id">img_0001_gen3_n07.jpg</span>
+                <span class="badge badge-derived">DERIVED</span>
+            </div>
+            <div class="card-body">
+                <p><strong>Dimensions:</strong> 392 x 432 px</p>
+                <p><strong>File Size:</strong> 5.4 KB</p>
+                <p><strong>SHA256:</strong> <small>6293d58cb100b4de...</small></p>
+                <p><strong>MD5:</strong> <small>902aa995bee64ce8870aa94cdddefb66</small></p>
+            </div>
+        </div>
+        
+        <div class="image-card">
+            <div class="card-header">
+                <span class="node-id">img_0001_gen3_n08.jpg</span>
+                <span class="badge badge-derived">DERIVED</span>
+            </div>
+            <div class="card-body">
+                <p><strong>Dimensions:</strong> 383 x 383 px</p>
+                <p><strong>File Size:</strong> 5.0 KB</p>
+                <p><strong>SHA256:</strong> <small>446688d6e3ebbe66...</small></p>
+                <p><strong>MD5:</strong> <small>0c8202a484eaf78b8cee5ed003b06481</small></p>
+            </div>
+        </div>
+        
+        <div class="image-card">
+            <div class="card-header">
+                <span class="node-id">img_0001_gen3_n09.jpg</span>
+                <span class="badge badge-derived">DERIVED</span>
+            </div>
+            <div class="card-body">
+                <p><strong>Dimensions:</strong> 512 x 512 px</p>
+                <p><strong>File Size:</strong> 48.7 KB</p>
+                <p><strong>SHA256:</strong> <small>1858e5ca031ef798...</small></p>
+                <p><strong>MD5:</strong> <small>a65a1c8d89c5b830c9602e3192f305bf</small></p>
+            </div>
+        </div>
+        
+        <div class="image-card">
+            <div class="card-header">
+                <span class="node-id">img_0001_gen3_n10.jpg</span>
+                <span class="badge badge-derived">DERIVED</span>
+            </div>
+            <div class="card-body">
+                <p><strong>Dimensions:</strong> 512 x 512 px</p>
+                <p><strong>File Size:</strong> 49.7 KB</p>
+                <p><strong>SHA256:</strong> <small>7c21e11365b5e4c8...</small></p>
+                <p><strong>MD5:</strong> <small>21e275e1e80f7fc7d50a3ccc7c0aab49</small></p>
+            </div>
+        </div>
+        
+        <div class="image-card">
+            <div class="card-header">
+                <span class="node-id">img_0001_gen3_n11.jpg</span>
+                <span class="badge badge-derived">DERIVED</span>
+            </div>
+            <div class="card-body">
+                <p><strong>Dimensions:</strong> 512 x 512 px</p>
+                <p><strong>File Size:</strong> 49.5 KB</p>
+                <p><strong>SHA256:</strong> <small>e646386d5361afc5...</small></p>
+                <p><strong>MD5:</strong> <small>5be381ff5c32082149a9f2fce1941087</small></p>
+            </div>
+        </div>
+        
+        <div class="image-card">
+            <div class="card-header">
+                <span class="node-id">original_0001.jpg</span>
+                <span class="badge badge-root">ROOT ORIGINAL</span>
+            </div>
+            <div class="card-body">
+                <p><strong>Dimensions:</strong> 512 x 512 px</p>
+                <p><strong>File Size:</strong> 6.7 KB</p>
+                <p><strong>SHA256:</strong> <small>a30495250a4a6dfa...</small></p>
+                <p><strong>MD5:</strong> <small>78cb7c99ca326693ab59e624cf43f163</small></p>
+            </div>
+        </div>
+        
+        </div>
+
+        <div class="section-title">Explainable AI (XAI) Forensic Evidence</div>
+        
+        <div class="xai-box">
+            <h4>Edge Transformation Evidence: <code>img_0001_gen3_n11</code> &rarr; <code>img_0001_gen3_n10</code></h4>
+            <img src="/data/visualizations/heatmap_demo_graph_0001_b78601_img_0001_gen3_n11_img_0001_gen3_n10.png" alt="Heatmap" style="max-width:100%; border-radius:8px; border:1px solid #00FF88;">
+            <div style="margin-top: 12px;">
+                <p><strong>Confidence Score:</strong> 98.8%</p>
+                <p><strong>Summary:</strong> Provenential dependency: img_0001_gen3_n11 -> img_0001_gen3_n10 via BLUR</p>
+                <ul class="evidence-list">
+                    <li>1. Visual Feature Similarity:</li><li>- ViT CLS Cosine Similarity: 0.9991 (High semantic alignment)</li><li>2. Dimension & Resolution Consistency:</li><li>- Parent Dimensions: 512 x 512 (49.5 KB)</li><li>- Child Dimensions:  512 x 512 (49.7 KB)</li><li>- High-frequency edge intensity drop: 13.45 -> 8.25</li><li>3. Spectral & Forensic Residuals:</li><li>- Estimated JPEG Quality Score: 55.0% (Parent) vs 75.8% (Child)</li><li>- Laplacian Gradient Intensity: 13.45 (Parent) vs 8.25 (Child)</li><li>- High-Pass Noise Residual Std: 5.34 (Parent) vs 3.20 (Child)</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="xai-box">
+            <h4>Edge Transformation Evidence: <code>img_0001_gen3_n11</code> &rarr; <code>img_0001_gen3_n09</code></h4>
+            <img src="/data/visualizations/heatmap_demo_graph_0001_b78601_img_0001_gen3_n11_img_0001_gen3_n09.png" alt="Heatmap" style="max-width:100%; border-radius:8px; border:1px solid #00FF88;">
+            <div style="margin-top: 12px;">
+                <p><strong>Confidence Score:</strong> 98.3%</p>
+                <p><strong>Summary:</strong> Provenential dependency: img_0001_gen3_n11 -> img_0001_gen3_n09 via BLUR</p>
+                <ul class="evidence-list">
+                    <li>1. Visual Feature Similarity:</li><li>- ViT CLS Cosine Similarity: 0.9788 (High semantic alignment)</li><li>2. Dimension & Resolution Consistency:</li><li>- Parent Dimensions: 512 x 512 (49.5 KB)</li><li>- Child Dimensions:  512 x 512 (48.7 KB)</li><li>- High-frequency edge intensity drop: 13.45 -> 13.56</li><li>3. Spectral & Forensic Residuals:</li><li>- Estimated JPEG Quality Score: 55.0% (Parent) vs 60.6% (Child)</li><li>- Laplacian Gradient Intensity: 13.45 (Parent) vs 13.56 (Child)</li><li>- High-Pass Noise Residual Std: 5.34 (Parent) vs 5.37 (Child)</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="xai-box">
+            <h4>Edge Transformation Evidence: <code>img_0001_gen3_n10</code> &rarr; <code>img_0001_gen3_n09</code></h4>
+            <img src="/data/visualizations/heatmap_demo_graph_0001_b78601_img_0001_gen3_n10_img_0001_gen3_n09.png" alt="Heatmap" style="max-width:100%; border-radius:8px; border:1px solid #00FF88;">
+            <div style="margin-top: 12px;">
+                <p><strong>Confidence Score:</strong> 98.2%</p>
+                <p><strong>Summary:</strong> Provenential dependency: img_0001_gen3_n10 -> img_0001_gen3_n09 via BLUR</p>
+                <ul class="evidence-list">
+                    <li>1. Visual Feature Similarity:</li><li>- ViT CLS Cosine Similarity: 0.9778 (High semantic alignment)</li><li>2. Dimension & Resolution Consistency:</li><li>- Parent Dimensions: 512 x 512 (49.7 KB)</li><li>- Child Dimensions:  512 x 512 (48.7 KB)</li><li>- High-frequency edge intensity drop: 8.25 -> 13.56</li><li>3. Spectral & Forensic Residuals:</li><li>- Estimated JPEG Quality Score: 75.8% (Parent) vs 60.6% (Child)</li><li>- Laplacian Gradient Intensity: 8.25 (Parent) vs 13.56 (Child)</li><li>- High-Pass Noise Residual Std: 3.20 (Parent) vs 5.37 (Child)</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="xai-box">
+            <h4>Edge Transformation Evidence: <code>img_0001_gen3_n09</code> &rarr; <code>img_0001_gen2_n05</code></h4>
+            <img src="/data/visualizations/heatmap_demo_graph_0001_b78601_img_0001_gen3_n09_img_0001_gen2_n05.png" alt="Heatmap" style="max-width:100%; border-radius:8px; border:1px solid #00FF88;">
+            <div style="margin-top: 12px;">
+                <p><strong>Confidence Score:</strong> 93.1%</p>
+                <p><strong>Summary:</strong> Provenential dependency: img_0001_gen3_n09 -> img_0001_gen2_n05 via BLUR</p>
+                <ul class="evidence-list">
+                    <li>1. Visual Feature Similarity:</li><li>- ViT CLS Cosine Similarity: 0.9792 (High semantic alignment)</li><li>2. Dimension & Resolution Consistency:</li><li>- Parent Dimensions: 512 x 512 (48.7 KB)</li><li>- Child Dimensions:  512 x 512 (42.5 KB)</li><li>- High-frequency edge intensity drop: 13.56 -> 10.39</li><li>3. Spectral & Forensic Residuals:</li><li>- Estimated JPEG Quality Score: 60.6% (Parent) vs 59.5% (Child)</li><li>- Laplacian Gradient Intensity: 13.56 (Parent) vs 10.39 (Child)</li><li>- High-Pass Noise Residual Std: 5.37 (Parent) vs 4.11 (Child)</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="xai-box">
+            <h4>Edge Transformation Evidence: <code>img_0001_gen3_n11</code> &rarr; <code>img_0001_gen2_n05</code></h4>
+            <img src="/data/visualizations/heatmap_demo_graph_0001_b78601_img_0001_gen3_n11_img_0001_gen2_n05.png" alt="Heatmap" style="max-width:100%; border-radius:8px; border:1px solid #00FF88;">
+            <div style="margin-top: 12px;">
+                <p><strong>Confidence Score:</strong> 92.4%</p>
+                <p><strong>Summary:</strong> Provenential dependency: img_0001_gen3_n11 -> img_0001_gen2_n05 via BLUR</p>
+                <ul class="evidence-list">
+                    <li>1. Visual Feature Similarity:</li><li>- ViT CLS Cosine Similarity: 0.9999 (High semantic alignment)</li><li>2. Dimension & Resolution Consistency:</li><li>- Parent Dimensions: 512 x 512 (49.5 KB)</li><li>- Child Dimensions:  512 x 512 (42.5 KB)</li><li>- High-frequency edge intensity drop: 13.45 -> 10.39</li><li>3. Spectral & Forensic Residuals:</li><li>- Estimated JPEG Quality Score: 55.0% (Parent) vs 59.5% (Child)</li><li>- Laplacian Gradient Intensity: 13.45 (Parent) vs 10.39 (Child)</li><li>- High-Pass Noise Residual Std: 5.34 (Parent) vs 4.11 (Child)</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="xai-box">
+            <h4>Edge Transformation Evidence: <code>img_0001_gen3_n10</code> &rarr; <code>img_0001_gen2_n05</code></h4>
+            <img src="/data/visualizations/heatmap_demo_graph_0001_b78601_img_0001_gen3_n10_img_0001_gen2_n05.png" alt="Heatmap" style="max-width:100%; border-radius:8px; border:1px solid #00FF88;">
+            <div style="margin-top: 12px;">
+                <p><strong>Confidence Score:</strong> 92.2%</p>
+                <p><strong>Summary:</strong> Provenential dependency: img_0001_gen3_n10 -> img_0001_gen2_n05 via BLUR</p>
+                <ul class="evidence-list">
+                    <li>1. Visual Feature Similarity:</li><li>- ViT CLS Cosine Similarity: 0.9993 (High semantic alignment)</li><li>2. Dimension & Resolution Consistency:</li><li>- Parent Dimensions: 512 x 512 (49.7 KB)</li><li>- Child Dimensions:  512 x 512 (42.5 KB)</li><li>- High-frequency edge intensity drop: 8.25 -> 10.39</li><li>3. Spectral & Forensic Residuals:</li><li>- Estimated JPEG Quality Score: 75.8% (Parent) vs 59.5% (Child)</li><li>- Laplacian Gradient Intensity: 8.25 (Parent) vs 10.39 (Child)</li><li>- High-Pass Noise Residual Std: 3.20 (Parent) vs 4.11 (Child)</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="xai-box">
+            <h4>Edge Transformation Evidence: <code>img_0001_gen3_n10</code> &rarr; <code>img_0001_gen3_n06</code></h4>
+            <img src="/data/visualizations/heatmap_demo_graph_0001_b78601_img_0001_gen3_n10_img_0001_gen3_n06.png" alt="Heatmap" style="max-width:100%; border-radius:8px; border:1px solid #00FF88;">
+            <div style="margin-top: 12px;">
+                <p><strong>Confidence Score:</strong> 90.7%</p>
+                <p><strong>Summary:</strong> Provenential dependency: img_0001_gen3_n10 -> img_0001_gen3_n06 via PERSPECTIVE</p>
+                <ul class="evidence-list">
+                    <li>1. Visual Feature Similarity:</li><li>- ViT CLS Cosine Similarity: 0.9981 (High semantic alignment)</li><li>2. Dimension & Resolution Consistency:</li><li>- Parent Dimensions: 512 x 512 (49.7 KB)</li><li>- Child Dimensions:  512 x 512 (68.1 KB)</li><li>- Statistical distribution shift consistent with perspective</li><li>3. Spectral & Forensic Residuals:</li><li>- Estimated JPEG Quality Score: 75.8% (Parent) vs 98.3% (Child)</li><li>- Laplacian Gradient Intensity: 8.25 (Parent) vs 28.75 (Child)</li><li>- High-Pass Noise Residual Std: 3.20 (Parent) vs 8.05 (Child)</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="xai-box">
+            <h4>Edge Transformation Evidence: <code>img_0001_gen3_n11</code> &rarr; <code>img_0001_gen3_n06</code></h4>
+            <img src="/data/visualizations/heatmap_demo_graph_0001_b78601_img_0001_gen3_n11_img_0001_gen3_n06.png" alt="Heatmap" style="max-width:100%; border-radius:8px; border:1px solid #00FF88;">
+            <div style="margin-top: 12px;">
+                <p><strong>Confidence Score:</strong> 90.4%</p>
+                <p><strong>Summary:</strong> Provenential dependency: img_0001_gen3_n11 -> img_0001_gen3_n06 via PERSPECTIVE</p>
+                <ul class="evidence-list">
+                    <li>1. Visual Feature Similarity:</li><li>- ViT CLS Cosine Similarity: 0.9976 (High semantic alignment)</li><li>2. Dimension & Resolution Consistency:</li><li>- Parent Dimensions: 512 x 512 (49.5 KB)</li><li>- Child Dimensions:  512 x 512 (68.1 KB)</li><li>- Statistical distribution shift consistent with perspective</li><li>3. Spectral & Forensic Residuals:</li><li>- Estimated JPEG Quality Score: 55.0% (Parent) vs 98.3% (Child)</li><li>- Laplacian Gradient Intensity: 13.45 (Parent) vs 28.75 (Child)</li><li>- High-Pass Noise Residual Std: 5.34 (Parent) vs 8.05 (Child)</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="xai-box">
+            <h4>Edge Transformation Evidence: <code>img_0001_gen3_n09</code> &rarr; <code>img_0001_gen3_n06</code></h4>
+            <img src="/data/visualizations/heatmap_demo_graph_0001_b78601_img_0001_gen3_n09_img_0001_gen3_n06.png" alt="Heatmap" style="max-width:100%; border-radius:8px; border:1px solid #00FF88;">
+            <div style="margin-top: 12px;">
+                <p><strong>Confidence Score:</strong> 88.4%</p>
+                <p><strong>Summary:</strong> Provenential dependency: img_0001_gen3_n09 -> img_0001_gen3_n06 via BRIGHTNESS</p>
+                <ul class="evidence-list">
+                    <li>1. Visual Feature Similarity:</li><li>- ViT CLS Cosine Similarity: 0.9768 (High semantic alignment)</li><li>2. Dimension & Resolution Consistency:</li><li>- Parent Dimensions: 512 x 512 (48.7 KB)</li><li>- Child Dimensions:  512 x 512 (68.1 KB)</li><li>- Statistical distribution shift consistent with brightness</li><li>3. Spectral & Forensic Residuals:</li><li>- Estimated JPEG Quality Score: 60.6% (Parent) vs 98.3% (Child)</li><li>- Laplacian Gradient Intensity: 13.56 (Parent) vs 28.75 (Child)</li><li>- High-Pass Noise Residual Std: 5.37 (Parent) vs 8.05 (Child)</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="xai-box">
+            <h4>Edge Transformation Evidence: <code>img_0001_gen2_n03</code> &rarr; <code>img_0001_gen1_n02</code></h4>
+            <img src="/data/visualizations/heatmap_demo_graph_0001_b78601_img_0001_gen2_n03_img_0001_gen1_n02.png" alt="Heatmap" style="max-width:100%; border-radius:8px; border:1px solid #00FF88;">
+            <div style="margin-top: 12px;">
+                <p><strong>Confidence Score:</strong> 63.4%</p>
+                <p><strong>Summary:</strong> Provenential dependency: img_0001_gen2_n03 -> img_0001_gen1_n02 via PERSPECTIVE</p>
+                <ul class="evidence-list">
+                    <li>1. Visual Feature Similarity:</li><li>- ViT CLS Cosine Similarity: 1.0000 (High semantic alignment)</li><li>2. Dimension & Resolution Consistency:</li><li>- Parent Dimensions: 512 x 512 (6.9 KB)</li><li>- Child Dimensions:  512 x 512 (6.8 KB)</li><li>- Statistical distribution shift consistent with perspective</li><li>3. Spectral & Forensic Residuals:</li><li>- Estimated JPEG Quality Score: 10.0% (Parent) vs 10.0% (Child)</li><li>- Laplacian Gradient Intensity: 0.21 (Parent) vs 0.21 (Child)</li><li>- High-Pass Noise Residual Std: 0.16 (Parent) vs 0.16 (Child)</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="xai-box">
+            <h4>Edge Transformation Evidence: <code>original_0001</code> &rarr; <code>img_0001_gen1_n02</code></h4>
+            <img src="/data/visualizations/heatmap_demo_graph_0001_b78601_original_0001_img_0001_gen1_n02.png" alt="Heatmap" style="max-width:100%; border-radius:8px; border:1px solid #00FF88;">
+            <div style="margin-top: 12px;">
+                <p><strong>Confidence Score:</strong> 63.3%</p>
+                <p><strong>Summary:</strong> Provenential dependency: original_0001 -> img_0001_gen1_n02 via PERSPECTIVE</p>
+                <ul class="evidence-list">
+                    <li>1. Visual Feature Similarity:</li><li>- ViT CLS Cosine Similarity: 1.0000 (High semantic alignment)</li><li>2. Dimension & Resolution Consistency:</li><li>- Parent Dimensions: 512 x 512 (6.7 KB)</li><li>- Child Dimensions:  512 x 512 (6.8 KB)</li><li>- Statistical distribution shift consistent with perspective</li><li>3. Spectral & Forensic Residuals:</li><li>- Estimated JPEG Quality Score: 10.0% (Parent) vs 10.0% (Child)</li><li>- Laplacian Gradient Intensity: 0.23 (Parent) vs 0.21 (Child)</li><li>- High-Pass Noise Residual Std: 0.21 (Parent) vs 0.16 (Child)</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="xai-box">
+            <h4>Edge Transformation Evidence: <code>original_0001</code> &rarr; <code>img_0001_gen2_n03</code></h4>
+            <img src="/data/visualizations/heatmap_demo_graph_0001_b78601_original_0001_img_0001_gen2_n03.png" alt="Heatmap" style="max-width:100%; border-radius:8px; border:1px solid #00FF88;">
+            <div style="margin-top: 12px;">
+                <p><strong>Confidence Score:</strong> 63.2%</p>
+                <p><strong>Summary:</strong> Provenential dependency: original_0001 -> img_0001_gen2_n03 via PERSPECTIVE</p>
+                <ul class="evidence-list">
+                    <li>1. Visual Feature Similarity:</li><li>- ViT CLS Cosine Similarity: 1.0000 (High semantic alignment)</li><li>2. Dimension & Resolution Consistency:</li><li>- Parent Dimensions: 512 x 512 (6.7 KB)</li><li>- Child Dimensions:  512 x 512 (6.9 KB)</li><li>- Statistical distribution shift consistent with perspective</li><li>3. Spectral & Forensic Residuals:</li><li>- Estimated JPEG Quality Score: 10.0% (Parent) vs 10.0% (Child)</li><li>- Laplacian Gradient Intensity: 0.23 (Parent) vs 0.21 (Child)</li><li>- High-Pass Noise Residual Std: 0.21 (Parent) vs 0.16 (Child)</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="xai-box">
+            <h4>Edge Transformation Evidence: <code>img_0001_gen2_n04</code> &rarr; <code>img_0001_gen2_n03</code></h4>
+            <img src="/data/visualizations/heatmap_demo_graph_0001_b78601_img_0001_gen2_n04_img_0001_gen2_n03.png" alt="Heatmap" style="max-width:100%; border-radius:8px; border:1px solid #00FF88;">
+            <div style="margin-top: 12px;">
+                <p><strong>Confidence Score:</strong> 62.2%</p>
+                <p><strong>Summary:</strong> Provenential dependency: img_0001_gen2_n04 -> img_0001_gen2_n03 via PERSPECTIVE</p>
+                <ul class="evidence-list">
+                    <li>1. Visual Feature Similarity:</li><li>- ViT CLS Cosine Similarity: 1.0000 (High semantic alignment)</li><li>2. Dimension & Resolution Consistency:</li><li>- Parent Dimensions: 512 x 512 (7.3 KB)</li><li>- Child Dimensions:  512 x 512 (6.9 KB)</li><li>- Statistical distribution shift consistent with perspective</li><li>3. Spectral & Forensic Residuals:</li><li>- Estimated JPEG Quality Score: 53.6% (Parent) vs 10.0% (Child)</li><li>- Laplacian Gradient Intensity: 0.22 (Parent) vs 0.21 (Child)</li><li>- High-Pass Noise Residual Std: 0.17 (Parent) vs 0.16 (Child)</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="xai-box">
+            <h4>Edge Transformation Evidence: <code>original_0001</code> &rarr; <code>img_0001_gen2_n04</code></h4>
+            <img src="/data/visualizations/heatmap_demo_graph_0001_b78601_original_0001_img_0001_gen2_n04.png" alt="Heatmap" style="max-width:100%; border-radius:8px; border:1px solid #00FF88;">
+            <div style="margin-top: 12px;">
+                <p><strong>Confidence Score:</strong> 62.1%</p>
+                <p><strong>Summary:</strong> Provenential dependency: original_0001 -> img_0001_gen2_n04 via PERSPECTIVE</p>
+                <ul class="evidence-list">
+                    <li>1. Visual Feature Similarity:</li><li>- ViT CLS Cosine Similarity: 1.0000 (High semantic alignment)</li><li>2. Dimension & Resolution Consistency:</li><li>- Parent Dimensions: 512 x 512 (6.7 KB)</li><li>- Child Dimensions:  512 x 512 (7.3 KB)</li><li>- Statistical distribution shift consistent with perspective</li><li>3. Spectral & Forensic Residuals:</li><li>- Estimated JPEG Quality Score: 10.0% (Parent) vs 53.6% (Child)</li><li>- Laplacian Gradient Intensity: 0.23 (Parent) vs 0.22 (Child)</li><li>- High-Pass Noise Residual Std: 0.21 (Parent) vs 0.17 (Child)</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="xai-box">
+            <h4>Edge Transformation Evidence: <code>img_0001_gen2_n04</code> &rarr; <code>img_0001_gen1_n02</code></h4>
+            <img src="/data/visualizations/heatmap_demo_graph_0001_b78601_img_0001_gen2_n04_img_0001_gen1_n02.png" alt="Heatmap" style="max-width:100%; border-radius:8px; border:1px solid #00FF88;">
+            <div style="margin-top: 12px;">
+                <p><strong>Confidence Score:</strong> 61.8%</p>
+                <p><strong>Summary:</strong> Provenential dependency: img_0001_gen2_n04 -> img_0001_gen1_n02 via PERSPECTIVE</p>
+                <ul class="evidence-list">
+                    <li>1. Visual Feature Similarity:</li><li>- ViT CLS Cosine Similarity: 1.0000 (High semantic alignment)</li><li>2. Dimension & Resolution Consistency:</li><li>- Parent Dimensions: 512 x 512 (7.3 KB)</li><li>- Child Dimensions:  512 x 512 (6.8 KB)</li><li>- Statistical distribution shift consistent with perspective</li><li>3. Spectral & Forensic Residuals:</li><li>- Estimated JPEG Quality Score: 53.6% (Parent) vs 10.0% (Child)</li><li>- Laplacian Gradient Intensity: 0.22 (Parent) vs 0.21 (Child)</li><li>- High-Pass Noise Residual Std: 0.17 (Parent) vs 0.16 (Child)</li>
+                </ul>
+            </div>
+        </div>
+        
+
+        <div class="footer">
+            <p>Generated automatically by <strong>TRACEAI Provenance Laboratory Engine</strong> — Powered by ViT-B/16 & Minimum Spanning Trees.</p>
+        </div>
+    </div>
+</body>
+</html>
