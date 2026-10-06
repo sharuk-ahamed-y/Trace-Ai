@@ -76,7 +76,8 @@ async def analyze_provenance(request: AnalyzeRequest):
 
     # Run ML & Graph Pipeline
     try:
-        results = run_provenance_analysis(
+        from backend.app.services.research_provenance_service import process_user_images_and_analyze
+        results = process_user_images_and_analyze(
             image_paths=image_paths,
             similarity_threshold=request.similarity_threshold,
             confidence_filter=request.confidence_filter
@@ -265,7 +266,8 @@ async def run_demo_analysis(graph_id: Optional[str] = Query("graph_0001")):
         raise HTTPException(status_code=500, detail="Failed to stage demo image files.")
 
     # Run analysis
-    results = run_provenance_analysis(image_paths, similarity_threshold=0.60, confidence_filter=0.40)
+    from backend.app.services.research_provenance_service import process_user_images_and_analyze
+    results = process_user_images_and_analyze(image_paths, similarity_threshold=0.45, confidence_filter=0.40)
     
     timestamp = datetime.now().isoformat()
     nodes_map = {n["id"]: n for n in results["nodes"]}
