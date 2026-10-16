@@ -61,16 +61,40 @@ def explain_edge_prediction(
         f"   - Child Dimensions:  {w_b} x {h_b} ({size_b / 1024:.1f} KB)",
     ]
 
+    lum_a = forensic_feats_a.get("r_mean", 0.0) * 0.299 + forensic_feats_a.get("g_mean", 0.0) * 0.587 + forensic_feats_a.get("b_mean", 0.0) * 0.114
+    lum_b = forensic_feats_b.get("r_mean", 0.0) * 0.299 + forensic_feats_b.get("g_mean", 0.0) * 0.587 + forensic_feats_b.get("b_mean", 0.0) * 0.114
+    std_a = (forensic_feats_a.get("r_std", 0.0) + forensic_feats_a.get("g_std", 0.0) + forensic_feats_a.get("b_std", 0.0)) / 3.0
+    std_b = (forensic_feats_b.get("r_std", 0.0) + forensic_feats_b.get("g_std", 0.0) + forensic_feats_b.get("b_std", 0.0)) / 3.0
+
     if predicted_tfm == "crop":
-        explanation_lines.append(f"   - Bounding box / dimension reduction: {w_b}x{h_b} from {w_a}x{h_a}")
+        if w_a != w_b or h_a != h_b:
+            explanation_lines.append(f"   - Spatial framing/bounding reduction: {w_b}x{h_b} from {w_a}x{h_a}")
+        else:
+            explanation_lines.append(f"   - Sub-region crop with canvas normalization to {w_b}x{h_b} (re-scaled back)")
     elif predicted_tfm == "resize":
-        explanation_lines.append(f"   - Spatial downscaling / interpolation shift: {w_a}x{h_a} -> {w_b}x{h_b}")
+        explanation_lines.append(f"   - Spatial interpolation and scaling shift: {w_a}x{h_a} -> {w_b}x{h_b} (Area: {w_a*h_a} -> {w_b*h_b} px)")
     elif predicted_tfm == "jpeg":
-        explanation_lines.append(f"   - JPEG compression quality drop: {jq_a:.1f} -> {jq_b:.1f}")
+        explanation_lines.append(f"   - JPEG compression artifact & blockiness shift: estimated quality {jq_a:.1f}% -> {jq_b:.1f}%")
     elif predicted_tfm == "blur":
-        explanation_lines.append(f"   - High-frequency edge intensity drop: {edge_a:.2f} -> {edge_b:.2f}")
+        explanation_lines.append(f"   - High-frequency spectral attenuation: Laplacian edge intensity {edge_a:.2f} -> {edge_b:.2f}")
+    elif predicted_tfm == "sharpen":
+        explanation_lines.append(f"   - High-frequency edge gradient accentuation: Laplacian edge intensity {edge_a:.2f} -> {edge_b:.2f}")
     elif predicted_tfm == "noise":
-        explanation_lines.append(f"   - High-pass spatial noise residual increase: {res_std_a:.2f} -> {res_std_b:.2f}")
+        explanation_lines.append(f"   - Additive stochastic noise residual increase: spatial noise std {res_std_a:.2f} -> {res_std_b:.2f}")
+    elif predicted_tfm == "brightness":
+        dir_label = "increase" if lum_b > lum_a else "attenuation"
+        explanation_lines.append(f"   - Mean photometric luminance {dir_label}: {lum_a:.1f} -> {lum_b:.1f} (delta = {lum_b - lum_a:+.1f})")
+    elif predicted_tfm == "contrast":
+        dir_label = "expansion" if std_b > std_a else "compression"
+        explanation_lines.append(f"   - Dynamic range standard deviation {dir_label}: {std_a:.1f} -> {std_b:.1f} (delta = {std_b - std_a:+.1f})")
+    elif predicted_tfm == "color":
+        explanation_lines.append(f"   - Chromatic channel distribution shift: RGB std {std_a:.1f} -> {std_b:.1f}")
+    elif predicted_tfm == "rotation":
+        explanation_lines.append(f"   - Geometric rotation shift with interpolation artifacts and border realignment ({w_a}x{h_a} -> {w_b}x{h_b})")
+    elif predicted_tfm == "perspective":
+        explanation_lines.append(f"   - Projective / planar homography warping distortion across coordinate plane ({w_a}x{h_a} -> {w_b}x{h_b})")
+    elif predicted_tfm == "quality_degradation":
+        explanation_lines.append(f"   - Compound forensic degradation: downscaling + noise injection ({res_std_a:.1f} -> {res_std_b:.1f}) + JPEG compression ({jq_a:.1f}% -> {jq_b:.1f}%)")
     else:
         explanation_lines.append(f"   - Statistical distribution shift consistent with {predicted_tfm}")
 

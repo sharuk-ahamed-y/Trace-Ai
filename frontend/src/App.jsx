@@ -1,190 +1,274 @@
 import React, { useState, useEffect } from 'react';
-import Navbar from './components/Navbar';
-import UploadZone from './components/UploadZone';
-import ProvenanceGraphViewer from './components/ProvenanceGraphViewer';
-import XaiPanel from './components/XaiPanel';
-import DatasetExplorer from './components/DatasetExplorer';
-import HistoryView from './components/HistoryView';
-import SystemHealth from './components/SystemHealth';
-import { Network, Upload, FileSearch, Database, Sparkles, ShieldCheck, ArrowRight, GitFork, Cpu, Layers, Quote, Award } from 'lucide-react';
 import axios from 'axios';
+import Sidebar from './components/Sidebar';
+import DashboardView from './components/DashboardView';
+import UploadZone from './components/UploadZone';
+import PairwiseAnalysisView from './components/PairwiseAnalysisView';
+import ProvenanceGraphViewer from './components/ProvenanceGraphViewer';
+import ForestAnalysisView from './components/ForestAnalysisView';
+import XaiPanel from './components/XaiPanel';
+import InvestigationReportView from './components/InvestigationReportView';
+import DatasetExplorer from './components/DatasetExplorer';
+import ModelMetricsView from './components/ModelMetricsView';
+import HistoryView from './components/HistoryView';
+import { 
+  Sparkles, 
+  ShieldCheck, 
+  AlertCircle, 
+  Terminal, 
+  Layers, 
+  Zap, 
+  CheckCircle2,
+  Cpu
+} from 'lucide-react';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTabState] = useState(() => {
+    try {
+      return localStorage.getItem('trace_ai_active_tab') || 'dashboard';
+    } catch {
+      return 'dashboard';
+    }
+  });
   const [analysisData, setAnalysisData] = useState(null);
   const [health, setHealth] = useState(null);
+  const [modelInfo, setModelInfo] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [datasetInfo, setDatasetInfo] = useState(null);
+  const [globalLoading, setGlobalLoading] = useState(false);
+  const [statusNotice, setStatusNotice] = useState(null);
 
+  const setActiveTab = (tab) => {
+    setActiveTabState(tab);
+    try {
+      localStorage.setItem('trace_ai_active_tab', tab);
+    } catch {}
+  };
+
+  // Restore active analysis on page refresh
   useEffect(() => {
-    const fetchHealth = () => {
+    try {
+      const savedId = localStorage.getItem('trace_ai_active_analysis_id');
+      if (savedId) {
+        axios.get(`/api/analysis/${savedId}`)
+          .then(res => {
+            if (res.data && res.data.analysis_id) {
+              setAnalysisData(res.data);
+            }
+          })
+          .catch(err => {
+            console.warn("Could not restore saved analysis session:", err);
+          });
+      }
+    } catch (e) {
+      console.warn("LocalStorage access error:", e);
+    }
+  }, []);
+
+  // Poll system health and load model metadata
+  useEffect(() => {
+    const fetchHealthAndInfo = () => {
       axios.get('/api/health')
         .then(res => setHealth(res.data))
         .catch(() => setHealth({ status: 'OFFLINE' }));
+
+      axios.get('/api/model-info')
+        .then(res => setModelInfo(res.data))
+        .catch(err => console.error("Model info fetch failed:", err));
+
+      axios.get('/api/history')
+        .then(res => setHistory(res.data || []))
+        .catch(err => console.error("History fetch failed:", err));
+
+      axios.get('/api/dataset')
+        .then(res => setDatasetInfo(res.data))
+        .catch(err => console.error("Dataset info fetch failed:", err));
     };
 
-    fetchHealth();
-    const interval = setInterval(fetchHealth, 10000);
+    fetchHealthAndInfo();
+    const interval = setInterval(fetchHealthAndInfo, 12000);
     return () => clearInterval(interval);
   }, []);
 
   const handleAnalysisComplete = (data) => {
     setAnalysisData(data);
+    try {
+      if (data?.analysis_id) {
+        localStorage.setItem('trace_ai_active_analysis_id', data.analysis_id);
+      }
+    } catch {}
+    // Refresh history
+    axios.get('/api/history')
+      .then(res => setHistory(res.data || []))
+      .catch(() => {});
+  };
+
+  const handleRunDemo = async () => {
+    try {
+      setGlobalLoading(true);
+      setStatusNotice("Initializing ViT inference over benchmark DAG graph_0001...");
+      const res = await axios.post('/api/demo?graph_id=graph_0001');
+      setAnalysisData(res.data);
+      try {
+        if (res.data?.analysis_id) {
+          localStorage.setItem('trace_ai_active_analysis_id', res.data.analysis_id);
+        }
+      } catch {}
+      setGlobalLoading(false);
+      setStatusNotice(null);
+      setActiveTab('graph');
+    } catch (err) {
+      console.error("Demo run error:", err);
+      setGlobalLoading(false);
+      setStatusNotice("Failed to launch benchmark demo.");
+    }
   };
 
   return (
-    <div className="min-h-screen bg-cyber-dark text-slate-100 flex flex-col font-sans">
-      <Navbar activeTab={activeTab} setActiveTab={setActiveTab} health={health} />
+    <div className="min-h-screen bg-[#070909] text-[#F4F7F5] flex font-sans antialiased selection:bg-[#39FF88] selection:text-black">
+      {/* Sleek Vertical Navigation Sidebar (Matching Reference Image 1) */}
+      <Sidebar 
+        activeTab={activeTab} 
+        setActiveTab={setActiveTab} 
+        health={health} 
+      />
 
-      <main className="flex-1 p-6 max-w-7xl w-full mx-auto space-y-8">
-        {activeTab === 'dashboard' && (
-          <div className="space-y-8">
-            {/* Research Hero Banner */}
-            <div className="bg-gradient-to-r from-cyber-card via-[#064E3B]/30 to-cyber-card p-8 rounded-3xl border border-cyber-neon/30 relative overflow-hidden shadow-[0_0_35px_rgba(16,185,129,0.1)]">
-              <div className="absolute top-0 right-0 w-96 h-96 bg-cyber-neon/5 rounded-full blur-3xl -z-0"></div>
-              <div className="relative z-10 max-w-3xl space-y-4">
-                <div className="flex items-center space-x-3">
-                  <span className="bg-cyber-neon/10 border border-cyber-neon/40 text-cyber-neon font-mono text-xs px-3 py-1 rounded-full uppercase tracking-widest font-bold flex items-center space-x-1.5">
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>TRACEAI RESEARCH PLATFORM</span>
-                  </span>
-                  <span className="text-xs text-cyber-muted font-mono">IEEE / College Conference Benchmark</span>
-                </div>
-                
-                <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight leading-tight">
-                  Transformation-Aware Image Provenance Graph Reconstruction
-                </h1>
-                <p className="text-cyber-muted text-xs sm:text-sm font-mono leading-relaxed max-w-2xl">
-                  Reconstructs multi-generation parent-child image derivation graphs using Minimum Spanning Trees (MST) and Breadth-First Search (BFS) over 72-dimensional visual and spectral forensic representations.
-                </p>
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
+        {/* Sticky Top Header Bar */}
+        <header className="sticky top-0 z-40 bg-[#070909]/90 backdrop-blur-md border-b border-[#1A2822] px-8 py-3.5 flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <span className="text-[11px] font-mono text-[#5F7067] uppercase tracking-wider">
+              WORKSPACE
+            </span>
+            <span className="text-[#5F7067] font-mono text-xs">/</span>
+            <span className="text-xs font-mono font-bold text-white capitalize">
+              {activeTab === 'dashboard' && 'Forensic Intelligence Dashboard'}
+              {activeTab === 'upload' && 'Multi-Image Ingestion & Reconstruction'}
+              {activeTab === 'pairwise' && 'Image Relationship & Transformation Analysis'}
+              {activeTab === 'graph' && 'Interactive Provenance Graph Canvas'}
+              {activeTab === 'forest' && 'Candidate Graph vs. Minimum Spanning Forest'}
+              {activeTab === 'xai' && 'Explainable AI Forensic Evidence'}
+              {activeTab === 'metrics' && 'Model Performance Metrics & Evaluation'}
+              {activeTab === 'history' && 'Analysis History & Saved Investigations'}
+              {activeTab === 'report' && 'Forensic Investigation Dossier'}
+              {activeTab === 'dataset' && 'Benchmark Dataset Catalog'}
+            </span>
 
-                {/* Counter Badges */}
-                <div className="grid grid-cols-3 gap-4 py-3 border-y border-cyber-border/60 max-w-lg font-mono">
-                  <div>
-                    <div className="text-lg font-bold text-cyber-neon">100</div>
-                    <div className="text-[10px] text-cyber-muted uppercase">Provenance Graphs</div>
-                  </div>
-                  <div>
-                    <div className="text-lg font-bold text-cyber-blue">795</div>
-                    <div className="text-[10px] text-cyber-muted uppercase">Benchmark Images</div>
-                  </div>
-                  <div>
-                    <div className="text-lg font-bold text-purple-400">12</div>
-                    <div className="text-[10px] text-cyber-muted uppercase">Edit Classes</div>
-                  </div>
-                </div>
+            {analysisData && (
+              <span className="bg-[#111916] border border-[#39FF88]/30 text-[#39FF88] text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full flex items-center space-x-1 shadow-[0_0_10px_rgba(57,255,136,0.15)]">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#39FF88] animate-pulse" />
+                <span>ACTIVE: {analysisData.analysis_id}</span>
+              </span>
+            )}
+          </div>
 
-                <div className="flex items-center space-x-4 pt-2">
-                  <button
-                    onClick={() => setActiveTab('analysis')}
-                    className="bg-cyber-neon text-black font-semibold px-6 py-3 rounded-xl text-xs flex items-center space-x-2 shadow-[0_0_20px_rgba(16,185,129,0.4)] hover:bg-cyber-neon/90 transition-all"
-                  >
-                    <Upload className="w-4 h-4" />
-                    <span>Launch New Provenance Analysis</span>
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('dataset')}
-                    className="bg-cyber-dark text-white hover:bg-cyber-border px-5 py-3 rounded-xl text-xs font-mono flex items-center space-x-2 border border-cyber-border transition-all"
-                  >
-                    <Database className="w-4 h-4 text-cyber-blue" />
-                    <span>Explore Research Dataset</span>
-                  </button>
-                </div>
-              </div>
+          {/* Quick Actions & System Pills */}
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={handleRunDemo}
+              disabled={globalLoading}
+              className="bg-[#111916] hover:bg-[#1A2822] text-[#39FF88] hover:text-white border border-[#39FF88]/30 px-3.5 py-1.5 rounded-full text-xs font-mono font-semibold flex items-center space-x-1.5 shadow-[0_0_12px_rgba(57,255,136,0.15)] transition-all cursor-pointer disabled:opacity-50"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-[#39FF88]" />
+              <span>{globalLoading ? 'Inference Running...' : 'Instant Benchmark Demo'}</span>
+            </button>
+
+            <div className="hidden sm:flex items-center space-x-2 bg-[#111916] border border-[#1A2822] px-3 py-1 rounded-full text-[11px] font-mono">
+              <span className={`w-2 h-2 rounded-full ${health?.status === 'ONLINE' ? 'bg-[#39FF88]' : 'bg-red-500'}`} />
+              <span className="text-[#9AA8A0]">BACKEND:</span>
+              <span className={health?.status === 'ONLINE' ? 'text-[#39FF88] font-bold' : 'text-red-400'}>
+                {health?.status || 'INIT'}
+              </span>
             </div>
+          </div>
+        </header>
 
-            {/* Core Pipeline Stage Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div
-                onClick={() => setActiveTab('analysis')}
-                className="bg-cyber-card p-6 rounded-2xl border border-cyber-border hover:border-cyber-neon transition-all cursor-pointer group space-y-3"
-              >
-                <div className="w-10 h-10 rounded-xl bg-cyber-neon/10 border border-cyber-neon/40 text-cyber-neon flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Upload className="w-5 h-5" />
-                </div>
-                <h3 className="text-base font-bold text-white group-hover:text-cyber-neon transition-colors">1. Multi-Image Upload</h3>
-                <p className="text-xs text-cyber-muted font-mono leading-relaxed">
-                  Upload multiple suspect images. Computes 72-dimensional visual embeddings and 17-dimensional spectral forensic vectors.
-                </p>
-                <div className="flex items-center space-x-1 text-xs text-cyber-neon font-mono font-bold pt-2">
-                  <span>Start Upload</span>
-                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-                </div>
-              </div>
-
-              <div
-                onClick={() => setActiveTab('graph')}
-                className="bg-cyber-card p-6 rounded-2xl border border-cyber-border hover:border-cyber-blue transition-all cursor-pointer group space-y-3"
-              >
-                <div className="w-10 h-10 rounded-xl bg-cyber-blue/10 border border-cyber-blue/40 text-cyber-blue flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <GitFork className="w-5 h-5" />
-                </div>
-                <h3 className="text-base font-bold text-white group-hover:text-cyber-blue transition-colors">2. MST & BFS Graph Engine</h3>
-                <p className="text-xs text-cyber-muted font-mono leading-relaxed">
-                  Applies Minimum Spanning Tree (MST) over candidate pairs, orients edges, detects root original, and computes BFS generation levels.
-                </p>
-                <div className="flex items-center space-x-1 text-xs text-cyber-blue font-mono font-bold pt-2">
-                  <span>View Graph Reconstruction</span>
-                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-                </div>
-              </div>
-
-              <div
-                onClick={() => setActiveTab('xai')}
-                className="bg-cyber-card p-6 rounded-2xl border border-cyber-border hover:border-purple-400 transition-all cursor-pointer group space-y-3"
-              >
-                <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-400/40 text-purple-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <FileSearch className="w-5 h-5" />
-                </div>
-                <h3 className="text-base font-bold text-white group-hover:text-purple-400 transition-colors">3. XAI Evidence & Explanations</h3>
-                <p className="text-xs text-cyber-muted font-mono leading-relaxed">
-                  Generates human-readable model explanations detailing root evidence, relationship confidence, and top forensic feature deltas.
-                </p>
-                <div className="flex items-center space-x-1 text-xs text-purple-400 font-mono font-bold pt-2">
-                  <span>Inspect XAI Evidence</span>
-                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-                </div>
-              </div>
-            </div>
-
-            {/* Research Quote & Design Card (Inspired by Template UI) */}
-            <div className="bg-cyber-card p-6 rounded-2xl border border-cyber-border flex flex-col md:flex-row items-center justify-between gap-6">
-              <div className="flex items-start space-x-4">
-                <Quote className="w-8 h-8 text-cyber-neon flex-shrink-0 mt-1 opacity-80" />
-                <div className="space-y-1">
-                  <h4 className="text-sm font-bold text-white uppercase tracking-wider font-mono">Image Provenance Principles</h4>
-                  <p className="text-xs text-cyber-muted italic leading-relaxed max-w-3xl">
-                    "Determining the lineage of digital assets requires uncovering structural relationships and physical edit footprints across image generations without prior knowledge of root identity."
-                  </p>
-                  <p className="text-[11px] text-cyber-neon font-mono font-semibold pt-1">— TRACEAI Image Provenance Research Benchmark</p>
-                </div>
-              </div>
-            </div>
+        {/* Global Banner Notification (if any) */}
+        {statusNotice && (
+          <div className="bg-[#111916] border-b border-[#39FF88]/30 px-8 py-2 text-xs font-mono text-[#39FF88] flex items-center space-x-2">
+            <span className="w-2 h-2 rounded-full bg-[#39FF88] animate-ping" />
+            <span>{statusNotice}</span>
           </div>
         )}
 
-        {activeTab === 'analysis' && (
-          <UploadZone onAnalysisComplete={handleAnalysisComplete} setActiveTab={setActiveTab} />
-        )}
+        {/* Main Routed Page Container */}
+        <main className="p-8 max-w-[1600px] w-full mx-auto flex-1">
+          {activeTab === 'dashboard' && (
+            <DashboardView
+              onRunDemo={handleRunDemo}
+              setActiveTab={setActiveTab}
+              history={history}
+              health={health}
+              modelInfo={modelInfo}
+              datasetInfo={datasetInfo}
+              analysisData={analysisData}
+            />
+          )}
 
-        {activeTab === 'graph' && (
-          <ProvenanceGraphViewer analysisData={analysisData} setActiveTab={setActiveTab} />
-        )}
+          {activeTab === 'upload' && (
+            <UploadZone
+              onAnalysisComplete={handleAnalysisComplete}
+              setActiveTab={setActiveTab}
+            />
+          )}
 
-        {activeTab === 'xai' && (
-          <XaiPanel analysisData={analysisData} />
-        )}
+          {activeTab === 'pairwise' && (
+            <PairwiseAnalysisView
+              initialImages={analysisData?.nodes}
+            />
+          )}
 
-        {activeTab === 'dataset' && (
-          <DatasetExplorer onAnalysisComplete={handleAnalysisComplete} setActiveTab={setActiveTab} />
-        )}
+          {activeTab === 'graph' && (
+            <ProvenanceGraphViewer
+              analysisData={analysisData}
+              setActiveTab={setActiveTab}
+            />
+          )}
 
-        {activeTab === 'history' && (
-          <HistoryView onAnalysisComplete={handleAnalysisComplete} setActiveTab={setActiveTab} />
-        )}
+          {activeTab === 'forest' && (
+            <ForestAnalysisView
+              analysisData={analysisData}
+              setActiveTab={setActiveTab}
+            />
+          )}
 
-        {activeTab === 'health' && (
-          <SystemHealth health={health} />
-        )}
-      </main>
+          {activeTab === 'xai' && (
+            <XaiPanel
+              analysisData={analysisData}
+              setActiveTab={setActiveTab}
+            />
+          )}
+
+          {activeTab === 'metrics' && (
+            <ModelMetricsView
+              modelInfo={modelInfo}
+              health={health}
+            />
+          )}
+
+          {activeTab === 'history' && (
+            <HistoryView
+              onAnalysisComplete={handleAnalysisComplete}
+              setActiveTab={setActiveTab}
+            />
+          )}
+
+          {activeTab === 'report' && (
+            <InvestigationReportView
+              analysisData={analysisData}
+              setActiveTab={setActiveTab}
+            />
+          )}
+
+          {activeTab === 'dataset' && (
+            <DatasetExplorer
+              onAnalysisComplete={handleAnalysisComplete}
+              setActiveTab={setActiveTab}
+            />
+          )}
+        </main>
+      </div>
     </div>
   );
 }

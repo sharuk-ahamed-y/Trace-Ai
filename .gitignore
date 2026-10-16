@@ -13,6 +13,18 @@ data/generated/*
 data/labels/*
 !data/labels/.gitkeep
 
+data/uploads/*
+!data/uploads/.gitkeep
+
+data/reports/*.html
+data/reports/*
+!data/reports/.gitkeep
+
+data/visualizations/*
+!data/visualizations/.gitkeep
+
+data/cache/
+
 # Ignore any loose image files in root or data
 *.jpg
 *.jpeg
@@ -27,6 +39,17 @@ models/*
 *.pt
 *.pth
 *.pkl
+*.onnx
+*.h5
+*.bin
+
+# ── Archives & Compressed Datasets ───────────────────────────────────────────
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.rar
 
 # ── Output Graphs & Reports ───────────────────────────────────────────────────
 outputs/*
@@ -34,11 +57,21 @@ outputs/*
 *.csv
 *.json
 
+# Explicitly allow dataset metadata CSV & config JSON files
+!DATASET_SOURCES.csv
+!**/package.json
+!**/package-lock.json
+!**/tsconfig*.json
+
 # ── Python & Environment ──────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
 
 # Virtual environment
 .venv/
@@ -46,19 +79,36 @@ venv/
 ENV/
 env/
 
+# Environment secrets
+.env
+.env.*
+!.env.example
+
 # IDE & Editor settings
 .vscode/
 .idea/
 *.swp
 *.swo
 .DS_Store
-# Node / JS
+
+# Node / JS & Frontend Build
 node_modules/
 frontend/node_modules/
+dist/
+frontend/dist/
+.npm/
 
-# Zip / Archives
-*.zip
-
-# Database
+# Database & Logs
 *.db
+*.sqlite
+*.sqlite3
+*.log
+
+# Backups & Temporary Scratch
+*.bak
+*.bak*
+*.backup
+backend/backup/
+scratch/
+
 

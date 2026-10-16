@@ -137,9 +137,15 @@ def process_user_images_and_analyze(
             except Exception:
                 f_vec = np.zeros(len(forensic_cols), dtype=np.float32)
 
-            # Generate synthetic / dummy 55D embedding for new image
-            np.random.seed(hash(img_id) % 2**32)
-            npy_vec = np.random.randn(55).astype(np.float32)
+            # Extract real ViT visual embedding for new user image (no random numbers)
+            try:
+                from backend.app.services.model_manager import get_model_manager
+                manager = get_model_manager()
+                vit_emb = manager.get_embedding(path).cpu().numpy()
+                npy_vec = vit_emb[:55].astype(np.float32)
+            except Exception as ex:
+                print(f"[ResearchProvenanceService] ViT fallback: {ex}")
+                npy_vec = np.zeros(55, dtype=np.float32)
 
             combined_vec = np.concatenate([npy_vec, f_vec], axis=0)
             image_features[img_id] = combined_vec

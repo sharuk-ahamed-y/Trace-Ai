@@ -63,3 +63,69 @@ def build_pair_feature_batch(
 
     features = torch.cat([embs_a, embs_b, abs_diff, cos_sim], dim=1)  # (B, 2305)
     return features
+
+
+def build_115d_pair_feature(feat_a, feat_b):
+    """
+    Constructs the verified 115-dimensional pairwise feature vector:
+    - 57 absolute-difference features (|feat_a - feat_b|)
+    - 57 elementwise-product features (feat_a * feat_b)
+    - 1 cosine-similarity feature (cos_sim(feat_a, feat_b))
+    Total = 57 + 57 + 1 = 115 dimensions.
+
+    Compatible with scikit-learn Pipeline(StandardScaler, MLPClassifier).
+    """
+    import numpy as np
+
+    v_a = np.asarray(feat_a, dtype=np.float32).flatten()
+    v_b = np.asarray(feat_b, dtype=np.float32).flatten()
+
+    # Explicit validation: require exact 57 dimensions (17 forensic + 40 histogram)
+    if len(v_a) != 57 or len(v_b) != 57:
+        raise ValueError(
+            f"[build_115d_pair_feature] Expected exact 57-dimensional features, "
+            f"got len(feat_a)={len(v_a)} and len(feat_b)={len(v_b)}. "
+            f"Features must comprise 17 scalar physical forensics + 40 histogram bins."
+        )
+
+    abs_diff = np.abs(v_a - v_b)
+    elem_prod = v_a * v_b
+
+    norm_a = np.linalg.norm(v_a) + 1e-8
+    norm_b = np.linalg.norm(v_b) + 1e-8
+    cos_sim = np.array([np.dot(v_a, v_b) / (norm_a * norm_b)], dtype=np.float32)
+
+    return np.concatenate([abs_diff, elem_prod, cos_sim], axis=0).astype(np.float32)
+
+
+def build_172d_direction_feature(feat_a, feat_b):
+    """
+    Constructs the verified 172-dimensional directional pairwise feature vector:
+    - 57 features from feat_a (representation of image A)
+    - 57 features from feat_b (representation of image B)
+    - 57 signed difference features (feat_a - feat_b)
+    - 1 cosine-similarity feature (cos_sim(feat_a, feat_b))
+    Total = 57 + 57 + 57 + 1 = 172 dimensions.
+
+    Compatible with scikit-learn direction_classifier.pkl (Pipeline: StandardScaler + MLPClassifier, input_dim=172).
+    """
+    import numpy as np
+
+    v_a = np.asarray(feat_a, dtype=np.float32).flatten()
+    v_b = np.asarray(feat_b, dtype=np.float32).flatten()
+
+    # Explicit validation: require exact 57 dimensions
+    if len(v_a) != 57 or len(v_b) != 57:
+        raise ValueError(
+            f"[build_172d_direction_feature] Expected exact 57-dimensional features, "
+            f"got len(feat_a)={len(v_a)} and len(feat_b)={len(v_b)}. "
+            f"Features must comprise 17 scalar physical forensics + 40 histogram bins."
+        )
+
+    signed_diff = v_a - v_b
+    norm_a = np.linalg.norm(v_a) + 1e-8
+    norm_b = np.linalg.norm(v_b) + 1e-8
+    cos_sim = np.array([np.dot(v_a, v_b) / (norm_a * norm_b)], dtype=np.float32)
+
+    return np.concatenate([v_a, v_b, signed_diff, cos_sim], axis=0).astype(np.float32)
+

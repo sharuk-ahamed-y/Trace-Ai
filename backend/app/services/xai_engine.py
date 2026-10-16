@@ -117,8 +117,92 @@ def generate_xai_report_for_edge(
     return {
         "source_id": source_node["id"],
         "target_id": target_node["id"],
+        "is_independent": False,
+        "relationship": "DERIVED",
+        "transformation": edge.get("transformation", "crop"),
+        "confidence": float(edge.get("confidence", 0.90)),
         "heatmap_url": heatmap_url,
         "heatmap_b64": f"data:image/png;base64,{b64_img}",
         "spatial_metrics": spatial_metrics,
         "evidence": evidence
     }
+
+
+def generate_xai_report_for_independent_pair(
+    node_a: Dict[str, Any],
+    node_b: Dict[str, Any],
+    pair_eval: Dict[str, Any],
+    analysis_id: str
+) -> Dict[str, Any]:
+    """Generates empirical noise residual difference heatmap and divergence rationale for independent/unrelated images."""
+    src_path = Path(node_a["file_path"])
+    tgt_path = Path(node_b["file_path"])
+
+    heatmap_filename = f"heatmap_{analysis_id}_{node_a['id']}_{node_b['id']}.png"
+    heatmap_path = VISUALIZATION_DIR / heatmap_filename
+
+    b64_img, spatial_metrics = generate_noise_residual_heatmap(src_path, tgt_path, heatmap_path)
+
+    p_rel = float(pair_eval.get("related_prob", pair_eval.get("related_confidence", 0.0)))
+    cos_sim = float(pair_eval.get("cosine_similarity", spatial_metrics.get("ssim_est", 0.50)))
+
+    forensic_a = node_a.get("forensics", {})
+    forensic_b = node_b.get("forensics", {})
+
+    w_a, h_a = forensic_a.get("width", 0), forensic_a.get("height", 0)
+    w_b, h_b = forensic_b.get("width", 0), forensic_b.get("height", 0)
+    size_a = forensic_a.get("file_size", 0)
+    size_b = forensic_b.get("file_size", 0)
+    jq_a = forensic_a.get("jpeg_quality_est", 100.0)
+    jq_b = forensic_b.get("jpeg_quality_est", 100.0)
+    res_std_a = forensic_a.get("noise_res_std", 0.0)
+    res_std_b = forensic_b.get("noise_res_std", 0.0)
+
+    findings = [
+        f"ViT CLS Semantic Cosine Similarity: {cos_sim:.4f} (Insufficient semantic feature overlap for derivation link).",
+        f"Relationship Classifier Confidence: {p_rel * 100:.1f}% (Did not satisfy derivation confidence threshold).",
+        f"Spatial Noise Residual Divergence: MSE = {spatial_metrics.get('mse', 'N/A')}, PSNR = {spatial_metrics.get('psnr_db', 'N/A')} dB, SSIM = {spatial_metrics.get('ssim_est', 'N/A')}.",
+        f"Spectral Comparison: JPEG Quality {jq_a:.1f}% vs {jq_b:.1f}%; Noise Residual Std {res_std_a:.2f} vs {res_std_b:.2f}.",
+        f"Dimension Profile: {w_a}x{h_a} ({size_a / 1024:.1f} KB) vs {w_b}x{h_b} ({size_b / 1024:.1f} KB).",
+        f"Forensic Conclusion: Images classified as INDEPENDENT / UNRELATED. No directed derivation edge added to forest."
+    ]
+
+    full_text = "\n".join([
+        "========================================",
+        "INDEPENDENT IMAGE FORENSIC EVIDENCE (XAI)",
+        "========================================",
+        f"Pair: {node_a['id']} <--> {node_b['id']}",
+        f"Classification: INDEPENDENT / UNRELATED",
+        f"Derivation Probability: {p_rel * 100:.1f}%",
+        f"ViT Cosine Similarity: {cos_sim:.4f}",
+        "",
+        "EMPIRICAL FORENSIC FINDINGS:",
+        *findings,
+        "========================================"
+    ])
+
+    evidence = {
+        "confidence": p_rel,
+        "is_independent": True,
+        "relationship": "INDEPENDENT / UNRELATED",
+        "transformation": "NONE (INDEPENDENT)",
+        "summary": f"Forensic Independence: '{node_a['id']}' and '{node_b['id']}' show no derivation link (P(rel) = {p_rel * 100:.1f}%).",
+        "empirical_findings": findings,
+        "full_text": full_text
+    }
+
+    heatmap_url = f"/data/visualizations/{heatmap_filename}"
+
+    return {
+        "source_id": node_a["id"],
+        "target_id": node_b["id"],
+        "is_independent": True,
+        "relationship": "INDEPENDENT / UNRELATED",
+        "transformation": "NONE (INDEPENDENT)",
+        "confidence": p_rel,
+        "heatmap_url": heatmap_url,
+        "heatmap_b64": f"data:image/png;base64,{b64_img}",
+        "spatial_metrics": spatial_metrics,
+        "evidence": evidence
+    }
+
