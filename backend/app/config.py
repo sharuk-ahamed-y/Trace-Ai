@@ -13,6 +13,8 @@ REPORT_DIR = DATA_DIR / "reports"
 VISUALIZATION_DIR = DATA_DIR / "visualizations"
 MODELS_DIR = BASE_DIR / "models"
 DATASET_DIR = BASE_DIR / "image_provenance_dataset"
+if not (DATASET_DIR / "graphs").exists() and (DATA_DIR / "provenance_dataset_v2").exists():
+    DATASET_DIR = DATA_DIR / "provenance_dataset_v2"
 DB_PATH = BASE_DIR / "provenance_app.db"
 
 # Models Paths
@@ -51,4 +53,8 @@ DEFAULT_SIMILARITY_THRESHOLD = 0.55
 DEFAULT_CONFIDENCE_FILTER = 0.40
 MAX_IMAGE_UPLOAD_COUNT = 30
 ALLOWED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".webp", ".tiff"}
+
+# Phase 4 Isolated Models & Reversible Feature Switch (Default: Disabled for safety)
+ENABLE_PHASE4_MODELS = os.getenv("ENABLE_PHASE4_MODELS", "false").lower() in ("true", "1", "yes")
+PHASE4_MODELS_DIR = BASE_DIR / "models" / "phase4_v1"
 

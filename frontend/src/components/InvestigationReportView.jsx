@@ -39,12 +39,12 @@ export default function InvestigationReportView({ analysisData, setActiveTab }) 
   }
 
   const analysisId = analysisData.analysis_id || 'TRACE-2026-X01';
-  const rootNode = analysisData.root_node || 'N/A';
+  const rootNode = analysisData.root_image_id || analysisData.root_node || (nodes.find(n => n.is_root)?.id) || 'N/A';
   const nodes = analysisData.nodes || [];
   const edges = analysisData.edges || [];
   const timestamp = analysisData.timestamp || new Date().toISOString();
   const summary = analysisData.summary || {};
-  const rootObj = nodes.find(n => n.id === rootNode) || nodes[0] || {};
+  const rootObj = nodes.find(n => n.id === rootNode || n.is_root) || nodes[0] || {};
 
   const handlePrint = () => {
     window.print();
@@ -225,12 +225,23 @@ export default function InvestigationReportView({ analysisData, setActiveTab }) 
                 {edges.map((e, idx) => (
                   <tr key={idx} className="hover:bg-[#111916]/60 transition-colors">
                     <td className="p-3.5 font-bold text-[#39FF88]">#{idx + 1}</td>
-                    <td className="p-3.5 text-white">{e.source_id}</td>
-                    <td className="p-3.5 text-[#35D9FF] font-semibold">{e.target_id}</td>
+                    <td className="p-3.5 text-white">{e.source_id || e.source}</td>
+                    <td className="p-3.5 text-[#35D9FF] font-semibold">{e.target_id || e.target}</td>
                     <td className="p-3.5">
-                      <span className="bg-[#35D9FF]/10 text-[#35D9FF] border border-[#35D9FF]/30 px-2 py-0.5 rounded text-[10px] font-bold uppercase">
-                        {e.transformation}
-                      </span>
+                      <div className="flex items-center space-x-2">
+                        <span className="bg-[#35D9FF]/10 text-[#35D9FF] border border-[#35D9FF]/30 px-2 py-0.5 rounded text-[10px] font-bold uppercase">
+                          {e.transformation}
+                        </span>
+                        {e.transformation_confidence !== undefined && e.transformation_confidence !== null ? (
+                          <span className="text-[10px] text-[#39FF88] font-mono">
+                            ({(e.transformation_confidence * 100).toFixed(0)}%)
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-[#E6B800] font-mono">
+                            (Unavailable)
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="p-3.5 text-[#9AA8A0]">
                       {((1 - (e.confidence || 0.9))).toFixed(3)}

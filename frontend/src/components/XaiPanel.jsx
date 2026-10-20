@@ -1,277 +1,390 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
-  FileSearch, 
+  BrainCircuit, 
   Sparkles, 
   AlertCircle, 
   Eye, 
   CheckCircle2, 
   Activity, 
   Layers, 
-  ArrowRight,
+  ArrowRight, 
+  ShieldCheck, 
+  Info,
+  FileText,
   Sliders,
-  ShieldCheck,
-  TrendingDown,
-  Info
+  Maximize2
 } from 'lucide-react';
-import axios from 'axios';
 
 export default function XaiPanel({ analysisData, setActiveTab }) {
   const xaiResults = analysisData?.xai_results || [];
+  const nodes = analysisData?.nodes || [];
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [sensitivityData, setSensitivityData] = useState(null);
-  const [loadingSens, setLoadingSens] = useState(false);
+  const [showFullText, setShowFullText] = useState(false);
 
   const currentXai = xaiResults[selectedIndex] || xaiResults[0];
 
-  // Fetch sensitivity metrics for active edge
-  useEffect(() => {
-    if (analysisData?.analysis_id && currentXai) {
-      setLoadingSens(true);
-      axios.get(`/api/analysis/${analysisData.analysis_id}/sensitivity`, {
-        params: {
-          source_id: currentXai.source_id,
-          target_id: currentXai.target_id
-        }
-      })
-      .then(res => {
-        setSensitivityData(res.data);
-        setLoadingSens(false);
-      })
-      .catch(err => {
-        console.error("Sensitivity fetch error:", err);
-        setLoadingSens(false);
-      });
-    }
-  }, [analysisData?.analysis_id, currentXai]);
+  // Map nodes by id for image previews
+  const nodeMap = nodes.reduce((acc, n) => {
+    acc[n.id] = n;
+    return acc;
+  }, {});
+
+  const srcNode = currentXai ? nodeMap[currentXai.source_id] : null;
+  const tgtNode = currentXai ? nodeMap[currentXai.target_id] : null;
 
   if (!analysisData) {
     return (
-      <div className="bg-[#111916] border border-[#1A2822] rounded-3xl p-12 text-center max-w-3xl mx-auto space-y-4 my-8">
-        <FileSearch className="w-12 h-12 text-[#9AA8A0] mx-auto opacity-40 animate-pulse" />
-        <h3 className="text-base font-bold text-[#F4F7F5] font-sans">No Provenance Analysis Staged</h3>
-        <p className="text-xs text-[#9AA8A0] font-mono leading-relaxed max-w-md mx-auto">
-          Execute a graph analysis or load a benchmark demo to generate empirical noise residual difference heatmaps, spatial pixel metrics, and model decision rationale.
-        </p>
-        <button
-          onClick={() => setActiveTab && setActiveTab('upload')}
-          className="bg-[#39FF88] text-black font-bold px-6 py-2.5 rounded-full text-xs font-mono inline-flex items-center space-x-2 shadow-[0_0_20px_rgba(57,255,136,0.3)] hover:bg-[#39FF88]/90 transition-all cursor-pointer"
-        >
-          <span>Run Provenance Analysis</span>
-          <ArrowRight className="w-4 h-4" />
-        </button>
-      </div>
-    );
-  }
-
-  if (xaiResults.length === 0) {
-    return (
-      <div className="bg-[#111916] border border-[#1A2822] rounded-3xl p-12 text-center max-w-3xl mx-auto space-y-4 my-8 font-mono">
-        <Info className="w-12 h-12 text-[#35D9FF] mx-auto opacity-70" />
-        <h3 className="text-base font-bold text-[#F4F7F5] font-sans">Completed Analysis: Disconnected Forest</h3>
-        <p className="text-xs text-[#9AA8A0] leading-relaxed max-w-lg mx-auto">
-          Analysis session <code className="text-[#39FF88]">{analysisData.analysis_id}</code> completed over {analysisData.nodes?.length || analysisData.images?.length || 2} images. No pairwise derivation links exceeded the confidence threshold ({analysisData.similarity_threshold || 0.50}). All images were classified as independent sources.
-        </p>
-        <div className="flex justify-center space-x-3 pt-2">
+      <div className="max-w-4xl mx-auto py-20 text-center glass-panel rounded-3xl p-10 border border-gold-border/30 space-y-6 shadow-card-dark">
+        <div className="w-16 h-16 rounded-2xl bg-gold-primary/10 border border-gold-primary/30 flex items-center justify-center text-gold-radiant mx-auto shadow-gold-glow">
+          <BrainCircuit className="w-8 h-8 stroke-[1.8]" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-xl sm:text-2xl font-bold text-white font-display">
+            No Active Forensic Dossier Loaded
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-400 font-mono max-w-md mx-auto leading-relaxed">
+            Explainable AI generates empirical noise residual difference heatmaps, spatial difference metrics, and grounded transformation reasoning when an image analysis is run.
+          </p>
+        </div>
+        <div className="flex items-center justify-center space-x-3 pt-2">
           <button
-            onClick={() => setActiveTab && setActiveTab('graph')}
-            className="bg-[#171E1A] hover:bg-[#1A2822] text-[#35D9FF] border border-[#35D9FF]/40 font-bold px-5 py-2.5 rounded-full text-xs inline-flex items-center space-x-2 transition-all cursor-pointer"
+            onClick={() => setActiveTab('upload')}
+            className="bg-gold-gradient hover:opacity-95 text-black font-bold px-6 py-3 rounded-full text-xs font-mono shadow-gold-glow transition-all cursor-pointer"
           >
-            <span>View Provenance Graph</span>
-          </button>
-          <button
-            onClick={() => setActiveTab && setActiveTab('upload')}
-            className="bg-[#39FF88] text-black font-bold px-5 py-2.5 rounded-full text-xs inline-flex items-center space-x-2 transition-all cursor-pointer"
-          >
-            <span>Adjust Thresholds in Upload Zone</span>
-            <ArrowRight className="w-4 h-4" />
+            Upload Images for Analysis
           </button>
         </div>
       </div>
     );
   }
 
-  const evidence = currentXai.evidence || {};
-  const findings = evidence.empirical_findings || [];
-  const spatialMetrics = currentXai.spatial_metrics || {};
-
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Header */}
+    <div className="max-w-7xl mx-auto space-y-8 pb-16">
+      {/* Top Header & Edge Selector */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[#F4F7F5] tracking-tight flex items-center space-x-2 font-sans">
-            <FileSearch className="w-6 h-6 text-[#39FF88]" />
-            <span>Explainable AI (XAI) Forensic Evidence</span>
-          </h1>
-          <p className="text-xs text-[#9AA8A0] font-mono pt-1">
-            Empirical noise residual spatial heatmaps, Laplacian differential evidence, and feature sensitivity attribution.
+          <div className="flex items-center space-x-3">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white font-display">
+              Explainable AI (XAI)
+            </h1>
+            <span className="bg-gold-primary/15 border border-gold-primary/30 text-gold-light text-[11px] font-mono px-3 py-1 rounded-full flex items-center space-x-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-electric animate-pulse" />
+              <span>Empirical Grounding</span>
+            </span>
+          </div>
+          <p className="text-xs sm:text-sm text-slate-400 font-mono pt-1">
+            Inspection of noise residual differentials, spatial metrics, and verifiable derivation rationale.
           </p>
         </div>
 
-        {/* Edge / Pair Selector Dropdown */}
-        <div className="flex items-center space-x-3 bg-[#111916] border border-[#1A2822] px-4 py-2 rounded-2xl">
-          <span className="text-xs font-mono text-[#9AA8A0]">
-            {currentXai?.is_independent ? "Evaluated Pair:" : "Analyzed Edge:"}
-          </span>
-          <select
-            value={selectedIndex}
-            onChange={(e) => setSelectedIndex(parseInt(e.target.value))}
-            className="bg-[#070909] text-xs font-mono text-[#39FF88] font-bold border border-[#1A2822] rounded-xl px-3 py-1.5 focus:outline-none focus:border-[#39FF88] cursor-pointer"
-          >
-            {xaiResults.map((x, idx) => (
-              <option key={idx} value={idx}>
-                {x.source_id} {x.is_independent ? '⟷' : '→'} {x.target_id} ({x.is_independent ? 'INDEPENDENT' : (x.transformation || 'Derived')})
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* Edge Selector Dropdown if multiple edges exist */}
+        {xaiResults.length > 0 && (
+          <div className="flex items-center space-x-2.5 glass-card px-3.5 py-1.5 rounded-xl border border-gold-border/30 self-start md:self-auto">
+            <span className="text-xs font-mono text-slate-400">Inspecting Edge:</span>
+            <select
+              value={selectedIndex}
+              onChange={(e) => setSelectedIndex(Number(e.target.value))}
+              className="bg-obsidian-900 border border-gold-border/40 text-white rounded-lg px-2.5 py-1 text-xs font-mono focus:outline-none cursor-pointer"
+            >
+              {xaiResults.map((xr, idx) => (
+                <option key={idx} value={idx}>
+                  #{idx + 1}: {xr.source_id} → {xr.target_id} ({xr.transformation?.toUpperCase()} {(xr.confidence * 100).toFixed(0)}%)
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
-      {/* Main Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column: Spatial Noise Residual Heatmap (7 cols) */}
-        <div className="lg:col-span-7 bg-[#111916] p-6 rounded-3xl border border-[#1A2822] space-y-5">
-          <div className="flex items-center justify-between border-b border-[#1A2822] pb-3">
-            <div className="flex items-center space-x-2">
-              <Eye className="w-4 h-4 text-[#35D9FF]" />
-              <span className="text-xs font-bold font-mono text-white uppercase tracking-wider">
-                Spatial Noise Residual Difference Heatmap
-              </span>
+      {currentXai ? (
+        <div className="space-y-8">
+          {/* Edge Summary Bar */}
+          <div className="glass-panel p-6 rounded-3xl border border-gold-border/30 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-card-dark">
+            <div className="flex items-center space-x-4">
+              <div className="w-12 h-12 rounded-2xl bg-cyan-electric/10 border border-cyan-electric/40 flex items-center justify-center text-cyan-electric shrink-0 shadow-cyan-glow">
+                <BrainCircuit className="w-6 h-6 stroke-[1.8]" />
+              </div>
+              <div className="space-y-0.5">
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs font-mono text-slate-400 uppercase tracking-wider">
+                    Edge Provenance Link:
+                  </span>
+                  <span className="font-mono text-sm font-bold text-white">
+                    {currentXai.source_id}
+                  </span>
+                  <ArrowRight className="w-3.5 h-3.5 text-gold-radiant" />
+                  <span className="font-mono text-sm font-bold text-white">
+                    {currentXai.target_id}
+                  </span>
+                </div>
+                <div className="text-xs font-mono text-slate-300">
+                  {currentXai.evidence?.summary || `Derived relationship via ${currentXai.transformation?.toUpperCase()}`}
+                </div>
+              </div>
             </div>
-            <span className="text-[10px] font-mono bg-[#35D9FF]/10 text-[#35D9FF] px-2 py-0.5 rounded border border-[#35D9FF]/30 font-bold">
-              JET COLORMAP OVERLAY
-            </span>
+
+            <div className="flex items-center space-x-4 self-start md:self-auto">
+              <div className="text-right">
+                <div className="text-[10px] font-mono text-slate-400 uppercase">Transformation</div>
+                <div className="text-sm font-mono font-bold text-gold-light uppercase">
+                  {currentXai.transformation || 'Unresolved'}
+                </div>
+              </div>
+              <div className="text-right border-l border-gold-border/20 pl-4">
+                <div className="text-[10px] font-mono text-slate-400 uppercase">Confidence</div>
+                <div className="text-sm font-mono font-bold text-cyan-electric">
+                  {((currentXai.confidence || 0) * 100).toFixed(1)}%
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* Heatmap Image Box */}
-          <div className="bg-[#070909] p-3 rounded-2xl border border-[#1A2822] flex items-center justify-center min-h-[360px] relative overflow-hidden group">
-            <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
-            {currentXai.heatmap_url || currentXai.heatmap_b64 ? (
-              <img
-                src={currentXai.heatmap_b64 || currentXai.heatmap_url}
-                alt="XAI Noise Residual Heatmap"
-                className="max-h-[360px] w-auto rounded-xl object-contain shadow-[0_0_25px_rgba(53,217,255,0.15)] group-hover:scale-[1.01] transition-transform"
-              />
+          {/* Triad Visual Comparison: Source Image vs Noise Residual Heatmap vs Target Image */}
+          <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-gold-border/30 space-y-5 shadow-card-dark">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-white font-display uppercase tracking-wider flex items-center space-x-2">
+                  <Eye className="w-4 h-4 text-cyan-electric" />
+                  <span>Noise Residual Difference & Spatial Heatmap</span>
+                </h3>
+                <p className="text-xs font-mono text-slate-400 pt-0.5">
+                  High-pass 3x3 median filter residual differential overlaid on parent canvas.
+                </p>
+              </div>
+              <span className="text-[11px] font-mono text-cyan-electric bg-cyan-electric/10 border border-cyan-electric/30 px-3 py-1 rounded-full hidden sm:inline-block">
+                OpenCV Colormap Jet
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
+              {/* Panel 1: Source / Parent Image */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-mono">
+                  <span className="text-slate-300 font-semibold">Parent ({currentXai.source_id})</span>
+                  <span className="text-slate-500">{srcNode?.width ? `${srcNode.width}x${srcNode.height}` : 'Source Canvas'}</span>
+                </div>
+                <div className="w-full h-56 rounded-2xl overflow-hidden bg-obsidian-900 border border-gold-border/20 flex items-center justify-center relative group">
+                  {srcNode?.url ? (
+                    <img 
+                      src={srcNode.url} 
+                      alt={currentXai.source_id}
+                      className="w-full h-full object-contain"
+                    />
+                  ) : (
+                    <div className="text-xs font-mono text-slate-500 p-4 text-center">
+                      Source Image Preview ({currentXai.source_id})
+                    </div>
+                  )}
+                  <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/70 text-[10px] font-mono text-slate-300">
+                    Source
+                  </div>
+                </div>
+              </div>
+
+              {/* Panel 2: Noise Residual Heatmap (Empirical) */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-mono">
+                  <span className="text-gold-light font-semibold">Empirical Residual Difference</span>
+                  <span className="text-cyan-electric">Jet Heatmap</span>
+                </div>
+                <div className="w-full h-56 rounded-2xl overflow-hidden bg-obsidian-900 border border-gold-border/40 flex items-center justify-center relative shadow-[0_0_20px_rgba(0,242,254,0.15)]">
+                  {currentXai.heatmap_b64 || currentXai.heatmap_url ? (
+                    <img 
+                      src={currentXai.heatmap_b64 || currentXai.heatmap_url} 
+                      alt="Empirical Noise Residual Heatmap"
+                      className="w-full h-full object-contain"
+                    />
+                  ) : (
+                    <div className="text-xs font-mono text-slate-400 p-4 text-center space-y-1">
+                      <AlertCircle className="w-5 h-5 text-amber-400 mx-auto" />
+                      <div>Heatmap rendering unavailable for this pair</div>
+                    </div>
+                  )}
+                  <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/80 text-[10px] font-mono text-gold-light border border-gold-border/30">
+                    Residual Differential
+                  </div>
+                </div>
+              </div>
+
+              {/* Panel 3: Target / Child Image */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-mono">
+                  <span className="text-slate-300 font-semibold">Derived Child ({currentXai.target_id})</span>
+                  <span className="text-slate-500">{tgtNode?.width ? `${tgtNode.width}x${tgtNode.height}` : 'Child Canvas'}</span>
+                </div>
+                <div className="w-full h-56 rounded-2xl overflow-hidden bg-obsidian-900 border border-gold-border/20 flex items-center justify-center relative group">
+                  {tgtNode?.url ? (
+                    <img 
+                      src={tgtNode.url} 
+                      alt={currentXai.target_id}
+                      className="w-full h-full object-contain"
+                    />
+                  ) : (
+                    <div className="text-xs font-mono text-slate-500 p-4 text-center">
+                      Target Image Preview ({currentXai.target_id})
+                    </div>
+                  )}
+                  <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/70 text-[10px] font-mono text-slate-300">
+                    Derived Target
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Heatmap Legend */}
+            <div className="p-3 rounded-xl bg-obsidian-900/80 border border-gold-border/15 flex flex-wrap items-center justify-between gap-3 text-[11px] font-mono text-slate-400">
+              <div className="flex items-center space-x-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-red-500" />
+                <span>Red/Yellow: High spatial residual divergence (altered edge, localized framing or color shift)</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                <span>Blue/Navy: Consistent underlying sensor noise distribution</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Real Spatial Difference Metrics */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="glass-panel p-5 rounded-2xl border border-gold-border/30 space-y-1 shadow-card-dark">
+              <div className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">
+                Mean Squared Error (MSE)
+              </div>
+              <div className="text-2xl font-bold font-mono text-white">
+                {currentXai.spatial_metrics?.mse !== undefined ? currentXai.spatial_metrics.mse : 'N/A'}
+              </div>
+              <div className="text-[10px] font-mono text-slate-500">
+                Pixel-level residual variance
+              </div>
+            </div>
+
+            <div className="glass-panel p-5 rounded-2xl border border-gold-border/30 space-y-1 shadow-card-dark">
+              <div className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">
+                Peak Signal-to-Noise (PSNR)
+              </div>
+              <div className="text-2xl font-bold font-mono text-gold-light">
+                {currentXai.spatial_metrics?.psnr_db !== undefined ? `${currentXai.spatial_metrics.psnr_db} dB` : 'N/A'}
+              </div>
+              <div className="text-[10px] font-mono text-slate-500">
+                Signal fidelity metric
+              </div>
+            </div>
+
+            <div className="glass-panel p-5 rounded-2xl border border-gold-border/30 space-y-1 shadow-card-dark">
+              <div className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">
+                SSIM Approximation
+              </div>
+              <div className="text-2xl font-bold font-mono text-cyan-electric">
+                {currentXai.spatial_metrics?.ssim_est !== undefined ? currentXai.spatial_metrics.ssim_est : 'N/A'}
+              </div>
+              <div className="text-[10px] font-mono text-slate-500">
+                Structural similarity coefficient
+              </div>
+            </div>
+
+            <div className="glass-panel p-5 rounded-2xl border border-gold-border/30 space-y-1 shadow-card-dark">
+              <div className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">
+                Mean Residual Difference
+              </div>
+              <div className="text-2xl font-bold font-mono text-slate-200">
+                {currentXai.spatial_metrics?.residual_diff_mean !== undefined ? currentXai.spatial_metrics.residual_diff_mean : 'N/A'}
+              </div>
+              <div className="text-[10px] font-mono text-slate-500">
+                High-pass intensity deviation
+              </div>
+            </div>
+          </div>
+
+          {/* Grounded Empirical Findings */}
+          <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-gold-border/30 space-y-5 shadow-card-dark">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-white font-display uppercase tracking-wider flex items-center space-x-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                <span>Grounded Forensic Evidence</span>
+              </h3>
+              {currentXai.evidence?.full_text && (
+                <button
+                  onClick={() => setShowFullText(!showFullText)}
+                  className="text-xs font-mono text-gold-light hover:text-white underline cursor-pointer"
+                >
+                  {showFullText ? 'Hide Technical Dossier' : 'View Complete Technical Text'}
+                </button>
+              )}
+            </div>
+
+            {/* Structured Empirical Findings List */}
+            {currentXai.evidence?.empirical_findings && currentXai.evidence.empirical_findings.length > 0 ? (
+              <div className="space-y-2.5">
+                {currentXai.evidence.empirical_findings.map((finding, idx) => (
+                  <div 
+                    key={idx}
+                    className="p-3.5 rounded-xl bg-obsidian-900 border border-gold-border/15 flex items-start space-x-3 text-xs font-mono text-slate-300"
+                  >
+                    <span className="w-5 h-5 rounded-md bg-gold-primary/10 border border-gold-primary/30 text-gold-radiant flex items-center justify-center shrink-0 text-[10px] font-bold">
+                      {idx + 1}
+                    </span>
+                    <span className="leading-relaxed">{finding}</span>
+                  </div>
+                ))}
+              </div>
             ) : (
-              <div className="py-24 text-xs text-[#9AA8A0] font-mono flex flex-col items-center space-y-2">
-                <Activity className="w-6 h-6 text-[#5F7067] animate-spin" />
-                <span>Computing high-frequency difference residual...</span>
+              <div className="p-4 rounded-xl bg-obsidian-900 text-xs font-mono text-slate-400">
+                {currentXai.evidence?.summary || 'Empirical findings not generated for this edge.'}
+              </div>
+            )}
+
+            {/* Expandable Technical Dossier */}
+            {showFullText && currentXai.evidence?.full_text && (
+              <div className="mt-4 p-4 rounded-2xl bg-black/80 border border-gold-border/20 font-mono text-xs text-slate-300 whitespace-pre-wrap overflow-x-auto leading-relaxed">
+                {currentXai.evidence.full_text}
               </div>
             )}
           </div>
 
-          {/* Spatial Metrics Strip */}
-          <div className="grid grid-cols-3 gap-3 font-mono text-xs">
-            <div className="bg-[#070909] p-3.5 rounded-xl border border-[#1A2822]">
-              <span className="text-[10px] text-[#5F7067] uppercase block">Mean Squared Error</span>
-              <span className="font-bold text-white text-sm mt-0.5 block">{spatialMetrics.mse || '0.042'}</span>
-            </div>
-            <div className="bg-[#070909] p-3.5 rounded-xl border border-[#1A2822]">
-              <span className="text-[10px] text-[#5F7067] uppercase block">PSNR (Decibels)</span>
-              <span className="font-bold text-[#35D9FF] text-sm mt-0.5 block">{spatialMetrics.psnr_db || '34.8'} dB</span>
-            </div>
-            <div className="bg-[#070909] p-3.5 rounded-xl border border-[#1A2822]">
-              <span className="text-[10px] text-[#5F7067] uppercase block">SSIM Index</span>
-              <span className="font-bold text-[#39FF88] text-sm mt-0.5 block">{spatialMetrics.ssim_est || '0.915'}</span>
-            </div>
-          </div>
-        </div>
+          {/* Model Scope & Explainability Disclosure (Honest Disclosures) */}
+          <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-gold-border/30 space-y-4 shadow-card-dark">
+            <h3 className="text-sm font-bold text-white font-display uppercase tracking-wider flex items-center space-x-2">
+              <Info className="w-4 h-4 text-gold-radiant" />
+              <span>Explainability Scope & Capabilities Disclosure</span>
+            </h3>
 
-        {/* Right Column: Decision Rationale & Feature Sensitivity (5 cols) */}
-        <div className="lg:col-span-5 space-y-6">
-          {/* Decision Rationale Card */}
-          <div className="bg-[#111916] p-6 rounded-3xl border border-[#1A2822] space-y-4 font-mono text-xs">
-            <div className="border-b border-[#1A2822] pb-3">
-              <div className="flex items-center space-x-2">
-                <Sparkles className="w-4 h-4 text-[#39FF88]" />
-                <span className="text-xs font-bold text-white uppercase tracking-wider font-sans">
-                  {currentXai.is_independent ? "Independent Pair Forensic Rationale" : "Empirical Forensic Rationale"}
-                </span>
-              </div>
-              <p className="text-[11px] text-[#9AA8A0] mt-1">
-                {currentXai.is_independent ? (
-                  <span>
-                    Comparative evaluation <code className="text-[#35D9FF]">{currentXai.source_id}</code> &harr; <code className="text-[#35D9FF]">{currentXai.target_id}</code>
-                  </span>
-                ) : (
-                  <span>
-                    Directional lineage <code className="text-[#39FF88]">{currentXai.source_id}</code> &rarr; <code className="text-[#35D9FF]">{currentXai.target_id}</code>
-                  </span>
-                )}
-              </p>
-            </div>
-
-            {/* Confidence Banner */}
-            <div className={`bg-[#070909] p-4 rounded-xl border ${currentXai.is_independent ? 'border-[#35D9FF]/30' : 'border-[#39FF88]/30'} space-y-2`}>
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-[#9AA8A0]">
-                  {currentXai.is_independent ? "Relationship Probability (Below Derivation Threshold):" : "Relationship Confidence:"}
-                </span>
-                <span className={`font-bold text-sm ${currentXai.is_independent ? 'text-[#35D9FF]' : 'text-[#39FF88]'}`}>
-                  {((evidence.confidence !== undefined ? evidence.confidence : currentXai.confidence || 0.0) * 100).toFixed(1)}%
-                </span>
-              </div>
-              <p className="text-[#F4F7F5] font-sans leading-relaxed text-xs">
-                {evidence.summary || (currentXai.is_independent ? "Pairwise image features show no derivation link exceeding threshold." : "High semantic affinity with detected modification footprint.")}
-              </p>
-            </div>
-
-            {/* Forensic Delta Markers */}
-            <div className="space-y-2.5">
-              <span className="text-[10px] font-bold text-[#9AA8A0] uppercase tracking-wider block">
-                Forensic Signature Findings ({findings.length})
-              </span>
-              {findings.map((item, idx) => (
-                <div key={idx} className="flex items-start space-x-2.5 bg-[#070909] p-3 rounded-xl border border-[#1A2822]">
-                  <CheckCircle2 className={`w-4 h-4 shrink-0 mt-0.5 ${currentXai.is_independent ? 'text-[#35D9FF]' : 'text-[#39FF88]'}`} />
-                  <span className="text-[#F4F7F5] font-sans text-xs leading-snug">{item}</span>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
+              <div className="p-4 rounded-2xl bg-obsidian-900/60 border border-emerald-500/20 space-y-2">
+                <div className="text-emerald-400 font-semibold flex items-center space-x-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Implemented & Supported Capabilities</span>
                 </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Feature Group Sensitivity Card */}
-          <div className="bg-[#111916] p-6 rounded-3xl border border-[#1A2822] space-y-4 font-mono text-xs">
-            <div className="flex items-center justify-between border-b border-[#1A2822] pb-3">
-              <div className="flex items-center space-x-2 font-sans">
-                <Sliders className="w-4 h-4 text-[#D7FF32]" />
-                <span className="text-xs font-bold text-white uppercase tracking-wider">
-                  115-D Feature Attribution
-                </span>
+                <ul className="space-y-1.5 text-slate-400 text-[11px] list-disc list-inside">
+                  <li>High-Pass Noise Residual Difference Heatmaps (OpenCV Median Filter + Jet colormap)</li>
+                  <li>Empirical Spatial Difference Metrics (MSE, PSNR, SSIM approximation)</li>
+                  <li>ViT-B/16 CLS Semantic Cosine Embedding Alignment</li>
+                  <li>Grounded Geometric & Photometric Rule Disclosures (Crop, Blur, Resize, Luminance)</li>
+                </ul>
               </div>
-              <span className="text-[10px] text-[#5F7067]">ABLATION SENSITIVITY</span>
-            </div>
 
-            <div className="space-y-3">
-              {(sensitivityData?.feature_groups || sensitivityData?.groups || [
-                { group: "Visual Transformer Latent", normalized_weight: 0.542, color: "#39FF88" },
-                { group: "High-Pass Noise Residual & JPEG", normalized_weight: 0.286, color: "#35D9FF" },
-                { group: "Edge & Frequency Gradients", normalized_weight: 0.121, color: "#D7FF32" },
-                { group: "Color Space Distribution", normalized_weight: 0.051, color: "#C084FC" },
-              ]).map((g, idx) => {
-                const pct = ((g.normalized_weight !== undefined ? g.normalized_weight : 0.2) * 100).toFixed(1);
-                const colors = ['#39FF88', '#35D9FF', '#D7FF32', '#C084FC', '#F43F5E'];
-                const barColor = g.color || colors[idx % colors.length];
-                return (
-                  <div key={idx}>
-                    <div className="flex justify-between text-[11px] mb-1">
-                      <span className="text-white">{g.group}</span>
-                      <span className="font-bold" style={{ color: barColor }}>{pct}%</span>
-                    </div>
-                    <div className="w-full bg-[#070909] h-2 rounded-full overflow-hidden border border-[#1A2822]">
-                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: barColor }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="p-3 bg-[#070909] rounded-xl border border-[#1A2822] text-[10px] text-[#9AA8A0] leading-relaxed">
-              Attribution metrics reflect empirical gradient sensitivities computed across 115-D difference representations without synthetic extrapolation.
+              <div className="p-4 rounded-2xl bg-obsidian-900/60 border border-gold-border/20 space-y-2">
+                <div className="text-gold-light font-semibold flex items-center space-x-1.5">
+                  <Info className="w-3.5 h-3.5" />
+                  <span>Current Limitations & Non-Fabricated Metrics</span>
+                </div>
+                <ul className="space-y-1.5 text-slate-400 text-[11px] list-disc list-inside">
+                  <li>SHAP values and Grad-CAM activation heatmaps are not enabled in this baseline.</li>
+                  <li>Phase 4 Deep Learning models remain disabled (ENABLE_PHASE4_MODELS=false).</li>
+                  <li>Values displayed reflect actual pixel mathematics and computed forensic statistics only.</li>
+                </ul>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      ) : (
+        <div className="p-8 text-center glass-panel rounded-3xl border border-gold-border/30 space-y-2">
+          <AlertCircle className="w-8 h-8 text-amber-400 mx-auto" />
+          <h3 className="text-sm font-bold text-white font-display">No XAI Records Found</h3>
+          <p className="text-xs font-mono text-slate-400">
+            Analysis completed with no directed or evaluated edges.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

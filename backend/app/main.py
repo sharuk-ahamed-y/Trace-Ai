@@ -58,8 +58,9 @@ app.mount("/data/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads
 app.mount("/data/reports", StaticFiles(directory=str(REPORT_DIR)), name="reports")
 app.mount("/data/visualizations", StaticFiles(directory=str(VISUALIZATION_DIR)), name="visualizations")
 
-if DATASET_DIR.exists():
-    app.mount("/data/dataset-images", StaticFiles(directory=str(DATASET_DIR / "images")), name="dataset_images")
+dataset_images_dir = (DATASET_DIR / "images") if (DATASET_DIR / "images").exists() else ((BASE_DIR / "data" / "provenance_dataset_v2" / "images") if (BASE_DIR / "data" / "provenance_dataset_v2" / "images").exists() else None)
+if dataset_images_dir is not None:
+    app.mount("/data/dataset-images", StaticFiles(directory=str(dataset_images_dir)), name="dataset_images")
 
 FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
 if FRONTEND_DIST.exists():

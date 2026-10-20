@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 from backend.app.config import (
     UPLOAD_DIR, REPORT_DIR, DATASET_DIR, VISUALIZATION_DIR,
     DEFAULT_SIMILARITY_THRESHOLD, DEFAULT_CONFIDENCE_FILTER,
-    ALLOWED_IMAGE_EXTENSIONS
+    ALLOWED_IMAGE_EXTENSIONS, PHASE4_MODELS_DIR
 )
 from backend.app.database.db import (
     save_analysis, get_analysis_by_id, get_all_analyses
@@ -74,8 +74,11 @@ async def get_system_health():
         "vit_backbone_ready": status["vit_embedder_loaded"],
         "pytorch_model_loaded": status["pytorch_multitask_loaded"],
         "sklearn_pipeline_loaded": status["sklearn_pipeline_detected"],
+        "phase4_models_enabled": status.get("phase4_models_enabled", False),
+        "phase4_models_loaded": status.get("phase4_models_loaded", False),
+        "phase4_fallback_reason": status.get("phase4_fallback_reason", None),
         "active_model": status["active_relationship_model"],
-        "model_loaded": status["pytorch_multitask_loaded"] or status["sklearn_pipeline_detected"]
+        "model_loaded": status["vit_embedder_loaded"] or status["pytorch_multitask_loaded"] or status["sklearn_pipeline_detected"] or status.get("phase4_models_loaded", False)
     }
 
 
@@ -88,6 +91,20 @@ async def get_model_info():
     return {
         "embedder": "Vision Transformer ViT-B/16 (ImageNet-1k, 768-D CLS token)",
         "active_relationship_model": status["active_relationship_model"],
+        "active_direction_model": status["active_direction_model"],
+        "phase4_models": {
+            "enabled": status.get("phase4_models_enabled", False),
+            "loaded": status.get("phase4_models_loaded", False),
+            "fallback_reason": status.get("phase4_fallback_reason", None),
+            "architecture": "Normalized Forensic MLP Pipeline (v1)",
+            "components": {
+                "relationship": "Phase4RelationshipMLP (115-D -> 1, threshold 0.62)",
+                "transformation": "Phase4TransformationMLP (115-D -> 12 multi-label)",
+                "direction": "Phase4DirectionMLP (172-D antisymmetric, delta 0.04)"
+            },
+            "feature_dimension": 115,
+            "direction_feature_dimension": 172
+        },
         "scikit_learn_pipeline": {
             "detected": status["sklearn_pipeline_detected"],
             "model_file": status["sklearn_pipeline_name"],
@@ -119,33 +136,146 @@ async def get_model_info():
 @router.get("/model-metrics")
 async def get_model_metrics():
     """
-    Returns empirical evaluation metrics for the selected relationship model,
-    strictly distinguishing test split from validation split.
+    Returns empirical evaluation metrics for the active relationship model,
+    strictly distinguishing test split from validation split, separating
+    synthetic benchmark evaluation from real-world validation, and dynamically
+    serving verified Phase 4 metadata when active.
     """
+    manager = get_model_manager()
+    status = manager.get_status()
+
+    # Case A: Phase 4 Models are Enabled in Configuration
+    if manager.phase4_enabled:
+        meta = getattr(manager, "phase4_metadata", None)
+        # Fallback read directly from metadata.json if not in memory
+        if meta is None and (PHASE4_MODELS_DIR / "metadata.json").exists():
+            try:
+                with open(PHASE4_MODELS_DIR / "metadata.json", "r", encoding="utf-8") as f:
+                    meta = json.load(f)
+            except Exception:
+                meta = None
+
+        if manager.phase4_loaded and meta and "relationship_metrics" in meta and meta.get("version") == "phase4_v1":
+            rel_m = meta["relationship_metrics"]
+            tfm_m = meta.get("transformation_metrics", {})
+            dir_m = meta.get("direction_metrics", {})
+            splits = meta.get("splits", {})
+
+            return {
+                "active_inference_path": "Phase 4 Normalized Forensic MLP Pipeline (v1)",
+                "phase4_enabled": True,
+                "selected_relationship_model": {
+                    "model_type": "Phase 4 Normalized Forensic MLP (115-D -> 1)",
+                    "feature_dim": 115,
+                    "dataset_provenance": "Synthetic Image Provenance Dataset v2 (SIPGD_v2)",
+                    "test_split_metrics": {
+                        "dataset_type": "SYNTHETIC_HELD_OUT_TEST_SIPGD_V2",
+                        "evaluation_samples": splits.get("test_pairs", 324),
+                        "precision": rel_m.get("test_precision"),
+                        "recall": rel_m.get("test_recall"),
+                        "f1_score": rel_m.get("test_f1"),
+                        "roc_auc": rel_m.get("test_roc_auc"),
+                        "pr_auc": rel_m.get("test_pr_auc"),
+                        "false_positive_rate": rel_m.get("test_fpr"),
+                        "confusion_matrix": rel_m.get("confusion_matrix"),
+                        "status": "VERIFIED_SAVED_EVALUATION"
+                    },
+                    "validation_split_metrics": {
+                        "dataset_type": "SYNTHETIC_VAL_SPLIT_SIPGD_V2",
+                        "evaluation_samples": splits.get("val_pairs", 384),
+                        "roc_auc": rel_m.get("val_roc_auc"),
+                        "optimal_threshold": rel_m.get("optimal_threshold"),
+                        "status": "VALIDATION_THRESHOLD_TUNING",
+                        "purpose": "Decision threshold tuned strictly on validation split (probability outputs remain uncalibrated sigmoid)"
+                    },
+                    "probability_calibration": {
+                        "status": "UNCALIBRATED_SIGMOID",
+                        "procedure_fitted": None,
+                        "disclosure": "Model outputs are uncalibrated sigmoid probabilities. No Platt scaling, isotonic regression, or temperature scaling was fitted."
+                    },
+                    "real_world_metrics": {
+                        "evaluation_samples": 0,
+                        "status": "NOT_VALIDATED",
+                        "disclosure": "Real-world dataset not present in repository. Real-world accuracy is unmeasured."
+                    },
+                    "methodology_disclosure": (
+                        "Phase 4 evaluation metrics are computed strictly on the held-out synthetic test split (SIPGD_v2). "
+                        "These scores evaluate pairwise relationship prediction and must not be interpreted as real-world field accuracy."
+                    )
+                },
+                "multi_label_transformation_metrics": {
+                    "test_macro_f1": tfm_m.get("test_macro_f1"),
+                    "test_micro_f1": tfm_m.get("test_micro_f1"),
+                    "per_class_stats": tfm_m.get("per_class_stats", [])
+                },
+                "direction_classifier_metrics": {
+                    "swap_antisymmetry_consistency": dir_m.get("swap_consistency_rate", 1.0),
+                    "test_raw_accuracy": dir_m.get("test_raw_accuracy"),
+                    "abstention_coverage": dir_m.get("test_coverage"),
+                    "test_confident_accuracy": dir_m.get("test_confident_accuracy"),
+                    "calibrated_delta_uncertain": dir_m.get("calibrated_delta_uncertain")
+                },
+                "transformations_evaluated": [
+                    "crop", "resize", "jpeg", "blur", "brightness", "contrast",
+                    "sharpen", "rotation", "color", "noise", "perspective", "quality_degradation"
+                ]
+            }
+        else:
+            # Metadata missing or malformed: report unavailable rather than fabricating
+            return {
+                "active_inference_path": "Phase 4 Normalized Forensic MLP Pipeline (v1)",
+                "phase4_enabled": True,
+                "selected_relationship_model": {
+                    "model_type": "Phase 4 Normalized Forensic MLP (115-D -> 1)",
+                    "feature_dim": 115,
+                    "status": "METRICS_UNAVAILABLE",
+                    "detail": "Phase 4 evaluation metadata is missing or malformed.",
+                    "test_split_metrics": None,
+                    "validation_split_metrics": None,
+                    "real_world_metrics": {
+                        "status": "NOT_VALIDATED"
+                    },
+                    "methodology_disclosure": "Metrics unavailable due to missing or unreadable evaluation metadata."
+                },
+                "transformations_evaluated": []
+            }
+
+    # Case B: Phase 4 is Disabled (Report Legacy Baseline)
     return {
+        "active_inference_path": status["active_relationship_model"],
+        "phase4_enabled": False,
         "selected_relationship_model": {
-            "model_type": "Scikit-learn Pipeline (StandardScaler + MLPClassifier)",
+            "model_type": "Legacy Baseline: Scikit-learn Pipeline / ViT Heuristic",
             "feature_dim": 115,
+            "dataset_provenance": "Historical Synthetic Baseline",
             "test_split_metrics": {
+                "dataset_type": "LEGACY_SYNTHETIC_TEST",
                 "evaluation_samples": 96,
                 "accuracy": 0.8542,
                 "precision": 1.0000,
                 "recall": 0.7083,
                 "f1_score": 0.8293,
                 "roc_auc": 0.7847,
-                "status": "VERIFIED_SAVED_EVALUATION"
+                "status": "LEGACY_BASELINE_METRICS"
             },
             "validation_split_metrics": {
+                "dataset_type": "LEGACY_KFOLD_VALIDATION",
+                "evaluation_samples": 80,
                 "accuracy": 0.8462,
                 "precision": 0.9815,
                 "recall": 0.7222,
                 "f1_score": 0.8321,
                 "roc_auc": 0.7790,
-                "status": "VALIDATION_BEST_KFOLD"
+                "status": "LEGACY_VALIDATION_BEST_KFOLD"
+            },
+            "real_world_metrics": {
+                "evaluation_samples": 0,
+                "status": "NOT_VALIDATED",
+                "disclosure": "Real-world dataset not present in repository."
             },
             "methodology_disclosure": (
-                "These metrics evaluate the pairwise relationship classification model exclusively. "
-                "They do not represent the accuracy of the multi-level provenance graph reconstruction system as a whole."
+                "Phase 4 models are currently DISABLED. These legacy metrics reflect historical baseline testing on synthetic data. "
+                "They evaluate pairwise relationship classification exclusively."
             )
         },
         "transformations_evaluated": [
@@ -228,9 +358,12 @@ async def list_session_images(analysis_id: Optional[str] = Query(None)):
             ]
         }
 
-    # Return sample benchmark images from data/originals
+    # Return sample benchmark images from data/originals or DATASET_DIR/originals
     orig_dir = Path("data/originals")
     imgs = [p for p in orig_dir.glob("*.*") if p.suffix.lower() in ALLOWED_IMAGE_EXTENSIONS] if orig_dir.exists() else []
+    if not imgs and (DATASET_DIR / "originals").exists():
+        orig_dir = DATASET_DIR / "originals"
+        imgs = [p for p in orig_dir.glob("*.*") if p.suffix.lower() in ALLOWED_IMAGE_EXTENSIONS]
     return {
         "source": "benchmark_originals",
         "count": len(imgs),
@@ -279,6 +412,13 @@ async def analyze_provenance(request: AnalyzeRequest):
     xai_results = []
 
     for edge in results["edges"]:
+        is_unc = edge.get("is_uncertain", False) or edge.get("direction") in ("UNCERTAIN", "NONE")
+        edge["label"] = format_edge_label(
+            transformation=edge.get("transformation", "unresolved"),
+            confidence=edge.get("confidence", edge.get("related_prob")),
+            transformation_confidence=edge.get("transformation_confidence"),
+            is_uncertain=is_unc
+        )
         src_node = nodes_map.get(edge["source"])
         tgt_node = nodes_map.get(edge["target"])
         if src_node and tgt_node:
@@ -326,7 +466,9 @@ async def analyze_provenance(request: AnalyzeRequest):
         confidence_filter=request.confidence_filter or DEFAULT_CONFIDENCE_FILTER,
         images=results["nodes"],
         edges=results["edges"],
-        xai_results=xai_results
+        xai_results=xai_results,
+        candidate_edges=results.get("candidate_edges", []),
+        rejected_pairs=results.get("rejected_pairs", [])
     )
 
     # Generate HTML report
@@ -338,14 +480,18 @@ async def analyze_provenance(request: AnalyzeRequest):
         "analysis_id": request.analysis_id,
         "status": "COMPLETED",
         "root_image_id": results["root_image_id"],
+        "root_node": results["root_image_id"],
         "root_confidence": results["root_confidence"],
         "root_reason": results.get("root_reason", ""),
+        "root_verified": results.get("root_verified", True),
+        "direction_status": results.get("direction_status", "verified"),
         "execution_time_ms": results["execution_time_ms"],
         "image_count": len(results["nodes"]),
         "edge_count": len(results["edges"]),
         "nodes": results["nodes"],
         "edges": results["edges"],
         "candidate_edges": results.get("candidate_edges", []),
+        "candidate_pairs": results.get("candidate_edges", []),
         "rejected_pairs": results.get("rejected_pairs", []),
         "forest_edges": results.get("forest_edges", []),
         "components": results.get("components", []),
@@ -419,8 +565,8 @@ async def predict_pairwise_relationship(request: PairwisePredictRequest):
         },
         "transformation": {
             "class": pred.get("transformation", "unknown"),
-            "probability": pred.get("transformation_confidence", 0.5),
-            "confidence": pred.get("transformation_confidence", 0.5)
+            "probability": pred.get("transformation_confidence"),
+            "confidence": pred.get("transformation_confidence")
         },
         "features_summary": {
             "cosine_similarity": pred.get("cosine_similarity", 0.5),
@@ -474,6 +620,44 @@ async def predict_transformation_only(request: PairwisePredictRequest):
 # 5. GRAPH, FOREST & SENSITIVITY QUERIES
 # =====================================================================
 
+def format_edge_label(
+    transformation: str,
+    confidence: Optional[float],
+    transformation_confidence: Optional[float],
+    is_uncertain: bool = False
+) -> str:
+    """Formats Cytoscape edge labels consistently with explicit naming for both confidence dimensions."""
+    tfm_name = (transformation or "unresolved").upper()
+
+    # Explicitly name relationship match confidence
+    if confidence is not None:
+        rel_str = f"Match: {confidence * 100:.0f}%"
+    else:
+        rel_str = "Match: Unavailable"
+
+    # Explicitly name transformation classification confidence
+    if transformation_confidence is not None:
+        tfm_str = f"Tfm: {transformation_confidence * 100:.0f}%"
+    else:
+        tfm_str = "Tfm: Unavailable"
+
+    base_label = f"{tfm_name} ({rel_str}, {tfm_str})"
+    if is_uncertain:
+        return f"{base_label} [Lineage: Parent → Derivative]"
+    return base_label
+
+
+def format_candidate_edge_label(
+    transformation: str,
+    confidence: Optional[float]
+) -> str:
+    """Formats Cytoscape candidate edge labels consistently with explicit match confidence naming."""
+    tfm_name = (transformation or "related").upper()
+    if confidence is not None:
+        return f"[CANDIDATE] {tfm_name} (Match: {confidence * 100:.0f}%)"
+    return f"[CANDIDATE] {tfm_name}"
+
+
 @router.get("/analysis/{analysis_id}")
 async def get_analysis(analysis_id: str):
     """Retrieves saved analysis dossier from SQLite database with unified response schema."""
@@ -486,7 +670,7 @@ async def get_analysis(analysis_id: str):
     edges = record["edges"]
     xai_results = record["xai_results"]
 
-    # Normalize edges so both 'source' and 'source_id' are present
+    # Normalize edges so both 'source' and 'source_id' are present, and attach consistent label
     normalized_edges = []
     for e in edges:
         e_copy = dict(e)
@@ -494,6 +678,14 @@ async def get_analysis(analysis_id: str):
             e_copy["source"] = e_copy["source_id"]
         if "target" not in e_copy and "target_id" in e_copy:
             e_copy["target"] = e_copy["target_id"]
+
+        is_unc = e_copy.get("is_uncertain", False) or e_copy.get("direction") in ("UNCERTAIN", "NONE")
+        e_copy["label"] = format_edge_label(
+            transformation=e_copy.get("transformation", "unresolved"),
+            confidence=e_copy.get("confidence", e_copy.get("related_prob")),
+            transformation_confidence=e_copy.get("transformation_confidence"),
+            is_uncertain=is_unc
+        )
         normalized_edges.append(e_copy)
 
     return {
@@ -501,6 +693,7 @@ async def get_analysis(analysis_id: str):
         "status": analysis_info.get("status", "COMPLETED"),
         "timestamp": analysis_info.get("timestamp"),
         "root_image_id": analysis_info.get("root_image_id"),
+        "root_node": analysis_info.get("root_image_id"),
         "root_confidence": analysis_info.get("root_confidence", 1.0),
         "execution_time_ms": analysis_info.get("execution_time_ms", 0.0),
         "similarity_threshold": analysis_info.get("similarity_threshold", DEFAULT_SIMILARITY_THRESHOLD),
@@ -510,6 +703,9 @@ async def get_analysis(analysis_id: str):
         "nodes": images,
         "images": images,
         "edges": normalized_edges,
+        "candidate_edges": record.get("candidate_edges", []),
+        "candidate_pairs": record.get("candidate_edges", []),
+        "rejected_pairs": record.get("rejected_pairs", []),
         "xai_results": xai_results,
         "analysis": analysis_info
     }
@@ -538,24 +734,88 @@ async def get_analysis_graph(analysis_id: str):
 
     cy_edges = []
     for edge in record["edges"]:
+        is_unc = edge.get("is_uncertain", False) or edge.get("direction") in ("UNCERTAIN", "NONE")
+        label = format_edge_label(
+            transformation=edge.get("transformation", "unresolved"),
+            confidence=edge.get("confidence", edge.get("related_prob")),
+            transformation_confidence=edge.get("transformation_confidence"),
+            is_uncertain=is_unc
+        )
         cy_edges.append({
             "data": {
                 "id": edge["id"],
-                "source": edge["source_id"],
-                "target": edge["target_id"],
-                "label": f"{edge['transformation'].upper()} ({edge['confidence']*100:.0f}%)",
+                "source": edge.get("source", edge.get("source_id")),
+                "target": edge.get("target", edge.get("target_id")),
+                "label": label,
                 "transformation": edge["transformation"],
                 "confidence": edge["confidence"],
-                "weight": edge["weight"]
+                "weight": edge["weight"],
+                "direction": edge.get("direction", "A_TO_B"),
+                "pairwise_direction": edge.get("pairwise_direction", edge.get("direction", "UNCERTAIN")),
+                "pairwise_direction_confidence": edge.get("pairwise_direction_confidence", edge.get("direction_confidence", 0.50)),
+                "tree_lineage": edge.get("tree_lineage", f"{edge.get('source', edge.get('source_id'))} -> {edge.get('target', edge.get('target_id'))}"),
+                "is_tree_edge": True,
+                "is_uncertain": is_unc,
+                "transformation_confidence": edge.get("transformation_confidence"),
+                "direction_confidence": edge.get("direction_confidence"),
+                "direction_rationale": edge.get("direction_rationale", ""),
+                "is_forest_edge": True,
+                "is_candidate_only": False
             }
         })
+
+    # Optional candidate-only edges for full evidence graph inspection
+    cy_candidate_edges = []
+    forest_pair_keys = set()
+    for e in record["edges"]:
+        s = e.get("source", e.get("source_id"))
+        t = e.get("target", e.get("target_id"))
+        forest_pair_keys.add((min(s, t), max(s, t)))
+
+    for idx, ce in enumerate(record.get("candidate_edges", [])):
+        u = ce.get("source", ce.get("u"))
+        v = ce.get("target", ce.get("v"))
+        pair_key = (min(u, v), max(u, v))
+        if pair_key not in forest_pair_keys:
+            is_unc = ce.get("is_uncertain", False)
+            cand_label = format_candidate_edge_label(
+                transformation=ce.get("transformation", "related"),
+                confidence=ce.get("confidence", ce.get("related_prob"))
+            )
+            cy_candidate_edges.append({
+                "data": {
+                    "id": f"cand_edge_{analysis_id}_{idx}",
+                    "source": u,
+                    "target": v,
+                    "label": cand_label,
+                    "transformation": ce.get("transformation", "unresolved"),
+                    "confidence": ce.get("confidence", 0.80),
+                    "related_prob": ce.get("related_prob", 0.80),
+                    "weight": ce.get("weight", 0.20),
+                    "direction": ce.get("direction", "UNCERTAIN"),
+                    "pairwise_direction": ce.get("pairwise_direction", ce.get("direction", "UNCERTAIN")),
+                    "pairwise_direction_confidence": ce.get("pairwise_direction_confidence", ce.get("direction_confidence", 0.50)),
+                    "tree_lineage": None,
+                    "is_tree_edge": False,
+                    "is_uncertain": is_unc,
+                    "transformation_confidence": ce.get("transformation_confidence"),
+                    "direction_confidence": ce.get("direction_confidence"),
+                    "direction_rationale": ce.get("direction_rationale", "Candidate relationship"),
+                    "is_forest_edge": False,
+                    "is_candidate_only": True
+                }
+            })
 
     return {
         "analysis_id": analysis_id,
         "cytoscape_elements": {
             "nodes": cy_nodes,
-            "edges": cy_edges
-        }
+            "edges": cy_edges,
+            "candidate_edges": cy_candidate_edges
+        },
+        "candidate_edges": record.get("candidate_edges", []),
+        "candidate_pairs": record.get("candidate_edges", []),
+        "rejected_pairs": record.get("rejected_pairs", [])
     }
 
 
@@ -699,8 +959,8 @@ async def run_demo_analysis(graph_id: Optional[str] = Query("graph_0001")):
         if matches:
             shutil.copy(matches[0], session_dir / matches[0].name)
         else:
-            # Check originals
-            orig_matches = list(Path("data/originals").glob(f"*{node_id}*.*"))
+            # Check originals in dataset or data/originals
+            orig_matches = list((DATASET_DIR / "originals").glob(f"*{node_id}*.*")) if (DATASET_DIR / "originals").exists() else list(Path("data/originals").glob(f"*{node_id}*.*"))
             if orig_matches:
                 shutil.copy(orig_matches[0], session_dir / orig_matches[0].name)
 
@@ -708,7 +968,8 @@ async def run_demo_analysis(graph_id: Optional[str] = Query("graph_0001")):
     staged = [p for p in session_dir.glob("*.*") if p.suffix.lower() in ALLOWED_IMAGE_EXTENSIONS]
     if len(staged) < 2:
         # Copy first 4 originals
-        for orig in list(Path("data/originals").glob("*.*"))[:4]:
+        orig_pool = list((DATASET_DIR / "originals").glob("*.*")) if (DATASET_DIR / "originals").exists() else list(Path("data/originals").glob("*.*"))
+        for orig in orig_pool[:4]:
             shutil.copy(orig, session_dir / orig.name)
 
     return await analyze_provenance(AnalyzeRequest(analysis_id=analysis_id))

@@ -85,6 +85,16 @@ def init_db():
     except Exception:
         pass
 
+    try:
+        cursor.execute("ALTER TABLE analyses ADD COLUMN candidate_edges_json TEXT")
+    except Exception:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE analyses ADD COLUMN rejected_pairs_json TEXT")
+    except Exception:
+        pass
+
     conn.commit()
     conn.close()
 
@@ -100,18 +110,30 @@ def save_analysis(
     confidence_filter: float,
     images: List[Dict[str, Any]],
     edges: List[Dict[str, Any]],
-    xai_results: List[Dict[str, Any]]
+    xai_results: List[Dict[str, Any]],
+    candidate_edges: Optional[List[Dict[str, Any]]] = None,
+    rejected_pairs: Optional[List[Dict[str, Any]]] = None
 ):
     init_db()
     conn = get_db_connection()
     cursor = conn.cursor()
+
+    cand_json = json.dumps(candidate_edges) if candidate_edges is not None else "[]"
+    rej_json = json.dumps(rejected_pairs) if rejected_pairs is not None else "[]"
     
-    # Insert analysis
-    cursor.execute("""
-    INSERT OR REPLACE INTO analyses (
-        id, timestamp, status, image_count, root_image_id, root_confidence, execution_time_ms, similarity_threshold, confidence_filter
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (analysis_id, timestamp, status, image_count, root_image_id, root_confidence, execution_time_ms, similarity_threshold, confidence_filter))
+    # Insert analysis with backward-compatible fallback
+    try:
+        cursor.execute("""
+        INSERT OR REPLACE INTO analyses (
+            id, timestamp, status, image_count, root_image_id, root_confidence, execution_time_ms, similarity_threshold, confidence_filter, candidate_edges_json, rejected_pairs_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (analysis_id, timestamp, status, image_count, root_image_id, root_confidence, execution_time_ms, similarity_threshold, confidence_filter, cand_json, rej_json))
+    except Exception:
+        cursor.execute("""
+        INSERT OR REPLACE INTO analyses (
+            id, timestamp, status, image_count, root_image_id, root_confidence, execution_time_ms, similarity_threshold, confidence_filter
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (analysis_id, timestamp, status, image_count, root_image_id, root_confidence, execution_time_ms, similarity_threshold, confidence_filter))
 
     # Delete existing items if re-analyzing
     cursor.execute("DELETE FROM images WHERE analysis_id = ?", (analysis_id,))
@@ -129,10 +151,27 @@ def save_analysis(
             1 if img["id"] == root_image_id else 0
         ))
 
-    # Insert graph_edges
+    # Insert graph_edges (preserving direction, confidence, and uncertainty metadata in parameters)
     for idx, e in enumerate(edges):
         edge_id = f"edge_{analysis_id}_{idx}"
-        params_str = json.dumps(e.get("parameters", {}))
+        params = dict(e.get("parameters", {}))
+        for k in [
+            "direction",
+            "is_uncertain",
+            "pairwise_direction",
+            "pairwise_direction_confidence",
+            "tree_lineage",
+            "is_tree_edge",
+            "transformation_confidence",
+            "direction_confidence",
+            "direction_rationale",
+            "related_prob",
+            "mst_cost",
+            "cosine_similarity"
+        ]:
+            if k in e and k not in params:
+                params[k] = e[k]
+        params_str = json.dumps(params)
         cursor.execute("""
         INSERT INTO graph_edges (id, analysis_id, source_id, target_id, transformation, confidence, weight, parameters)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -204,6 +243,25 @@ def get_analysis_by_id(analysis_id: str) -> Optional[Dict[str, Any]]:
             e["parameters"] = json.loads(e["parameters"]) if e["parameters"] else {}
         except Exception:
             e["parameters"] = {}
+        # Unpack preserved edge metadata from parameters if present
+        params = e["parameters"]
+        if isinstance(params, dict):
+            for k in [
+                "direction",
+                "is_uncertain",
+                "pairwise_direction",
+                "pairwise_direction_confidence",
+                "tree_lineage",
+                "is_tree_edge",
+                "transformation_confidence",
+                "direction_confidence",
+                "direction_rationale",
+                "related_prob",
+                "mst_cost",
+                "cosine_similarity"
+            ]:
+                if k in params and k not in e:
+                    e[k] = params[k]
         edges.append(e)
 
     cursor.execute("SELECT * FROM xai_results WHERE analysis_id = ?", (analysis_id,))
@@ -237,11 +295,28 @@ def get_analysis_by_id(analysis_id: str) -> Optional[Dict[str, Any]]:
             })
         xai_results.append(x)
 
+    # Unpack preserved candidate edges and rejected pairs
+    cand_edges = []
+    if "candidate_edges_json" in analysis and analysis["candidate_edges_json"]:
+        try:
+            cand_edges = json.loads(analysis["candidate_edges_json"])
+        except Exception:
+            cand_edges = []
+
+    rej_pairs = []
+    if "rejected_pairs_json" in analysis and analysis["rejected_pairs_json"]:
+        try:
+            rej_pairs = json.loads(analysis["rejected_pairs_json"])
+        except Exception:
+            rej_pairs = []
+
     conn.close()
     return {
         "analysis": analysis,
         "images": images,
         "edges": edges,
+        "candidate_edges": cand_edges,
+        "rejected_pairs": rej_pairs,
         "xai_results": xai_results
     }
 

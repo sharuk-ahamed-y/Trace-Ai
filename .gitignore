@@ -25,6 +25,14 @@ data/visualizations/*
 
 data/cache/
 
+data/dev_isolated_test/
+data/empirical_benchmark/
+data/provenance_dataset_v2/
+data/real_world_benchmark/
+data/temp_test/
+data/tmp_test/
+image_provenance_dataset/features/
+
 # Ignore any loose image files in root or data
 *.jpg
 *.jpeg
@@ -42,6 +50,8 @@ models/*
 *.onnx
 *.h5
 *.bin
+*.npy
+*.npz
 
 # ── Archives & Compressed Datasets ───────────────────────────────────────────
 *.zip
@@ -111,4 +121,11 @@ frontend/dist/
 backend/backup/
 scratch/
 
-
+# TRACE AI 2.0: explicitly track project metadata/config
+!DATASET_SOURCES.csv
+!**/manifest.csv
+!**/labels.csv
+!**/config.json
+!**/package.json
+!**/package-lock.json
+!**/tsconfig*.json

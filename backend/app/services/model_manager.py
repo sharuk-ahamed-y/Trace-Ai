@@ -19,6 +19,7 @@ Supports:
 
 import os
 import sys
+import json
 import pickle
 from pathlib import Path
 from typing import Dict, Tuple, Any, Optional, List
@@ -30,7 +31,8 @@ import torch.nn.functional as F
 from backend.app.config import (
     MODELS_DIR, TRAINED_MODELS_DIR, COLAB_MODELS_PATH,
     MODEL_FILE, RESEARCH_MODEL_FILE, DIRECTION_MLP_FILE, TRANSFORM_MLP_FILE,
-    PKL_RELATIONSHIP_NAMES, PKL_DIRECTION_NAMES, PKL_TRANSFORM_NAMES
+    PKL_RELATIONSHIP_NAMES, PKL_DIRECTION_NAMES, PKL_TRANSFORM_NAMES,
+    ENABLE_PHASE4_MODELS, PHASE4_MODELS_DIR
 )
 from src.feature_extractor import ViTEmbedder, extract_embedding
 from src.forensic_features import extract_forensic_features
@@ -84,6 +86,64 @@ class AntisymmetricDirectionMLP(nn.Module):
         return 0.5 * (out_ab - out_ba)
 
 
+class Phase4RelationshipMLP(nn.Module):
+    """Phase 4 Pairwise Binary Relationship Classifier (115-D -> 1)."""
+    def __init__(self, in_dim: int = 115, hidden: int = 64):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(in_dim, hidden),
+            nn.BatchNorm1d(hidden),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(hidden, 32),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(32, 1)
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.net(x).squeeze(-1)
+
+
+class Phase4TransformationMLP(nn.Module):
+    """Phase 4 Multi-Label Transformation Classifier (115-D -> 12)."""
+    def __init__(self, in_dim: int = 115, num_classes: int = 12, hidden: int = 128):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(in_dim, hidden),
+            nn.BatchNorm1d(hidden),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(hidden, 64),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(64, num_classes)
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.net(x)
+
+
+class Phase4DirectionMLP(nn.Module):
+    """Phase 4 Antisymmetric Direction Classifier (172-D -> 1)."""
+    def __init__(self, in_dim: int = 172, hidden: int = 64):
+        super().__init__()
+        self.g = nn.Sequential(
+            nn.Linear(in_dim, hidden),
+            nn.BatchNorm1d(hidden),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(hidden, 32),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(32, 1)
+        )
+
+    def forward(self, x_ab: torch.Tensor, x_ba: torch.Tensor) -> torch.Tensor:
+        return 0.5 * (self.g(x_ab) - self.g(x_ba)).squeeze(-1)
+
+
+
 def _load_serialized_model(path: Path) -> Any:
     try:
         import joblib
@@ -117,6 +177,23 @@ class ModelManager:
         except Exception as e:
             print(f"[ModelManager] ViT loading warning: {e}")
             self.embedder = None
+
+        # 1b. Phase 4 Isolated Models & Reversible Switch
+        self.phase4_enabled = ENABLE_PHASE4_MODELS
+        self.phase4_rel_model = None
+        self.phase4_tfm_model = None
+        self.phase4_dir_model = None
+        self.phase4_scaler_115 = None
+        self.phase4_scaler_172 = None
+        self.phase4_rel_threshold = 0.62
+        self.phase4_dir_delta_uncertain = 0.04
+        self.phase4_tfm_thresholds = None
+        self.phase4_metadata = None
+        self.phase4_fallback_reason = None
+        self.phase4_loaded = False
+
+        if self.phase4_enabled:
+            self._init_phase4_models()
 
         # 2. Check for Scikit-Learn Colab Models (115-D pipeline)
         self.sklearn_rel_model = None
@@ -258,9 +335,198 @@ class ModelManager:
 
         self.initialized = True
 
+    def _init_phase4_models(self):
+        """Loads Phase 4 normalized forensic MLPs and scalers from models/phase4_v1/."""
+        try:
+            if not PHASE4_MODELS_DIR.exists():
+                print(f"[ModelManager] Phase 4 directory not found: {PHASE4_MODELS_DIR}")
+                self.phase4_fallback_reason = f"Phase 4 models directory not found at {PHASE4_MODELS_DIR}"
+                self.phase4_loaded = False
+                self.phase4_metadata = None
+                return
+
+            rel_path = PHASE4_MODELS_DIR / "relationship_model.pt"
+            tfm_path = PHASE4_MODELS_DIR / "transformation_model.pt"
+            dir_path = PHASE4_MODELS_DIR / "direction_model.pt"
+            s115_path = PHASE4_MODELS_DIR / "scaler_115.joblib"
+            s172_path = PHASE4_MODELS_DIR / "scaler_172.joblib"
+            meta_path = PHASE4_MODELS_DIR / "metadata.json"
+
+            required_files = [rel_path, tfm_path, dir_path, s115_path, s172_path, meta_path]
+            for rf in required_files:
+                if not rf.exists():
+                    print(f"[ModelManager] Phase 4 missing required file: {rf.name}. Keeping legacy fallback.")
+                    self.phase4_fallback_reason = f"Missing required Phase 4 artifact: {rf.name}"
+                    self.phase4_loaded = False
+                    self.phase4_metadata = None
+                    return
+
+            # Optional SHA-256 integrity check if a trusted manifest is explicitly configured
+            checksum_manifest = None
+            env_manifest = os.getenv("PHASE4_CHECKSUM_MANIFEST")
+            if env_manifest and Path(env_manifest).exists():
+                checksum_manifest = Path(env_manifest)
+            elif (PHASE4_MODELS_DIR / "checksums.sha256").exists():
+                checksum_manifest = PHASE4_MODELS_DIR / "checksums.sha256"
+            elif (PHASE4_MODELS_DIR / "sha256_manifest.json").exists():
+                checksum_manifest = PHASE4_MODELS_DIR / "sha256_manifest.json"
+
+            if checksum_manifest:
+                import hashlib
+                expected_hashes = {}
+                if checksum_manifest.suffix == ".json":
+                    with open(checksum_manifest, "r", encoding="utf-8") as f_ck:
+                        expected_hashes = json.load(f_ck)
+                else:
+                    with open(checksum_manifest, "r", encoding="utf-8") as f_ck:
+                        for line in f_ck:
+                            parts = line.strip().split()
+                            if len(parts) >= 2:
+                                expected_hashes[parts[1].strip()] = parts[0].strip()
+
+                for rf in required_files:
+                    rf_name = rf.name
+                    if rf_name in expected_hashes:
+                        with open(rf, "rb") as f_in:
+                            h = hashlib.sha256(f_in.read()).hexdigest()
+                        if h.lower() != expected_hashes[rf_name].lower():
+                            raise ValueError(f"SHA-256 mismatch for {rf_name}: expected {expected_hashes[rf_name]}, got {h}")
+
+            import joblib
+            self.phase4_scaler_115 = joblib.load(s115_path)
+            self.phase4_scaler_172 = joblib.load(s172_path)
+
+            # Validate scaler dimensions and finite values
+            n_in_115 = getattr(self.phase4_scaler_115, "n_features_in_", None)
+            if n_in_115 is None and hasattr(self.phase4_scaler_115, "mean_"):
+                n_in_115 = len(self.phase4_scaler_115.mean_)
+            if n_in_115 != 115:
+                raise ValueError(f"scaler_115 feature dimension mismatch: expected 115, got {n_in_115}")
+            if hasattr(self.phase4_scaler_115, "mean_") and not np.all(np.isfinite(self.phase4_scaler_115.mean_)):
+                raise ValueError("scaler_115 contains non-finite mean values")
+            if hasattr(self.phase4_scaler_115, "scale_") and not np.all(np.isfinite(self.phase4_scaler_115.scale_)):
+                raise ValueError("scaler_115 contains non-finite scale values")
+
+            n_in_172 = getattr(self.phase4_scaler_172, "n_features_in_", None)
+            if n_in_172 is None and hasattr(self.phase4_scaler_172, "mean_"):
+                n_in_172 = len(self.phase4_scaler_172.mean_)
+            if n_in_172 != 172:
+                raise ValueError(f"scaler_172 feature dimension mismatch: expected 172, got {n_in_172}")
+            if hasattr(self.phase4_scaler_172, "mean_") and not np.all(np.isfinite(self.phase4_scaler_172.mean_)):
+                raise ValueError("scaler_172 contains non-finite mean values")
+            if hasattr(self.phase4_scaler_172, "scale_") and not np.all(np.isfinite(self.phase4_scaler_172.scale_)):
+                raise ValueError("scaler_172 contains non-finite scale values")
+
+            with open(meta_path, "r", encoding="utf-8") as f:
+                meta = json.load(f)
+
+            # Metadata version and structural integrity verification
+            if meta.get("version") != "phase4_v1":
+                raise ValueError(f"Incompatible metadata version: '{meta.get('version')}' (expected 'phase4_v1')")
+
+            if "relationship_metrics" not in meta or "optimal_threshold" not in meta["relationship_metrics"]:
+                raise ValueError("Metadata missing valid 'relationship_metrics.optimal_threshold'")
+
+            if "direction_metrics" not in meta or "calibrated_delta_uncertain" not in meta["direction_metrics"]:
+                raise ValueError("Metadata missing valid 'direction_metrics.calibrated_delta_uncertain'")
+
+            if "transformation_metrics" not in meta or "per_class_stats" not in meta["transformation_metrics"]:
+                raise ValueError("Metadata missing valid 'transformation_metrics.per_class_stats'")
+
+            rel_thresh_meta = float(meta["relationship_metrics"]["optimal_threshold"])
+            if not np.isfinite(rel_thresh_meta) or not (0.0 <= rel_thresh_meta <= 1.0):
+                raise ValueError(f"Invalid relationship threshold in metadata: {rel_thresh_meta} (must be in [0.0, 1.0])")
+
+            dir_delta_meta = float(meta["direction_metrics"]["calibrated_delta_uncertain"])
+            if not np.isfinite(dir_delta_meta) or not (0.0 <= dir_delta_meta <= 0.5):
+                raise ValueError(f"Invalid direction delta in metadata: {dir_delta_meta} (must be in [0.0, 0.5])")
+
+            tfm_stats_meta = meta["transformation_metrics"]["per_class_stats"]
+            if len(tfm_stats_meta) != 12:
+                raise ValueError(f"Expected 12 transformation classes in metadata, got {len(tfm_stats_meta)}")
+            for s in tfm_stats_meta:
+                th = float(s["threshold"])
+                if not np.isfinite(th) or not (0.0 <= th <= 1.0):
+                    raise ValueError(f"Invalid transformation threshold for class {s.get('class')}: {th}")
+
+            # Load Relationship
+            rel_ckpt = torch.load(rel_path, map_location=self.device, weights_only=False)
+            rel_in = rel_ckpt.get("in_dim", 115)
+            if rel_in != 115:
+                raise ValueError(f"Relationship checkpoint feature dimension mismatch: {rel_in} != 115")
+            rel_thresh_ckpt = rel_ckpt.get("threshold")
+            if rel_thresh_ckpt is not None and abs(float(rel_thresh_ckpt) - rel_thresh_meta) > 1e-4:
+                raise ValueError(f"Checkpoint threshold {rel_thresh_ckpt} does not match metadata threshold {rel_thresh_meta}")
+
+            m_rel = Phase4RelationshipMLP(in_dim=rel_in, hidden=rel_ckpt.get("hidden", 64)).to(self.device)
+            m_rel.load_state_dict(rel_ckpt["state_dict"])
+            m_rel.eval()
+            self.phase4_rel_model = m_rel
+
+            # Load Transformation
+            tfm_ckpt = torch.load(tfm_path, map_location=self.device, weights_only=False)
+            tfm_in = tfm_ckpt.get("in_dim", 115)
+            tfm_num_classes = tfm_ckpt.get("num_classes", 12)
+            if tfm_in != 115 or tfm_num_classes != 12:
+                raise ValueError(f"Transformation checkpoint dimensions mismatch: in_dim={tfm_in}, classes={tfm_num_classes}")
+            m_tfm = Phase4TransformationMLP(in_dim=tfm_in, num_classes=tfm_num_classes, hidden=tfm_ckpt.get("hidden", 128)).to(self.device)
+            m_tfm.load_state_dict(tfm_ckpt["state_dict"])
+            m_tfm.eval()
+            self.phase4_tfm_model = m_tfm
+
+            # Load Direction
+            dir_ckpt = torch.load(dir_path, map_location=self.device, weights_only=False)
+            dir_in = dir_ckpt.get("in_dim", 172)
+            if dir_in != 172:
+                raise ValueError(f"Direction checkpoint feature dimension mismatch: {dir_in} != 172")
+            dir_delta_ckpt = dir_ckpt.get("delta_uncertain")
+            if dir_delta_ckpt is not None and abs(float(dir_delta_ckpt) - dir_delta_meta) > 1e-4:
+                raise ValueError(f"Checkpoint delta {dir_delta_ckpt} does not match metadata delta {dir_delta_meta}")
+
+            m_dir = Phase4DirectionMLP(in_dim=dir_in, hidden=dir_ckpt.get("hidden", 64)).to(self.device)
+            m_dir.load_state_dict(dir_ckpt["state_dict"])
+            m_dir.eval()
+            self.phase4_dir_model = m_dir
+
+            # Validate all model weights are finite (no NaN or Inf)
+            for name, model in [("relationship", m_rel), ("transformation", m_tfm), ("direction", m_dir)]:
+                for param in model.parameters():
+                    if not torch.isfinite(param).all():
+                        raise ValueError(f"Phase 4 {name} model contains NaN or Inf weights")
+
+            self.phase4_metadata = meta
+            self.phase4_rel_threshold = rel_thresh_meta
+            self.phase4_dir_delta_uncertain = dir_delta_meta
+            self.phase4_tfm_thresholds = [float(s["threshold"]) for s in tfm_stats_meta]
+
+            self.phase4_loaded = True
+            self.phase4_fallback_reason = None
+            print(f"[ModelManager] Loaded Phase 4 Models (rel_thresh={self.phase4_rel_threshold}, delta_unc={self.phase4_dir_delta_uncertain})")
+        except Exception as ex:
+            print(f"[ModelManager] Phase 4 initialization warning: {ex}")
+            self.phase4_loaded = False
+            self.phase4_metadata = None
+            self.phase4_rel_model = None
+            self.phase4_tfm_model = None
+            self.phase4_dir_model = None
+            self.phase4_scaler_115 = None
+            self.phase4_scaler_172 = None
+            self.phase4_fallback_reason = f"Phase 4 initialization error: {ex}"
+
+    def set_phase4_enabled(self, enabled: bool, reload: bool = False):
+        """Enables or disables Phase 4 models dynamically."""
+        self.initialize()
+        self.phase4_enabled = enabled
+        if enabled:
+            if reload or not getattr(self, "phase4_loaded", False):
+                self._init_phase4_models()
+        else:
+            self.phase4_fallback_reason = "Phase 4 models disabled by configuration"
+
     def get_embedding(self, image_path: Path) -> torch.Tensor:
         """Extracts 768-D L2-normalized ViT CLS embedding with caching."""
         self.initialize()
+        image_path = Path(image_path)
         key = str(image_path.resolve())
         if key in self._embedding_cache:
             return self._embedding_cache[key]
@@ -272,6 +538,7 @@ class ModelManager:
     def get_forensic_features(self, image_path: Path) -> Dict[str, Any]:
         """Extracts 17 physical, spectral, and statistical forensic features with caching."""
         self.initialize()
+        image_path = Path(image_path)
         key = str(image_path.resolve())
         if key in self._forensic_cache:
             return self._forensic_cache[key]
@@ -281,19 +548,8 @@ class ModelManager:
         return f_dict
 
     def get_57d_representation(self, image_path: Path) -> np.ndarray:
-        """
-        Extracts the verified 57-dimensional feature representation for an image:
-        - 17 physical and statistical forensic features (width, height, area, aspect_ratio,
-          file_size, jpeg_quality_est, r_mean, r_std, g_mean, g_std, b_mean, b_std,
-          edge_mean, edge_std, edge_max, noise_res_std, noise_res_skew)
-        - 40 histogram features:
-          * 16-bin grayscale intensity histogram
-          * 8-bin Red channel histogram
-          * 8-bin Green channel histogram
-          * 8-bin Blue channel histogram
-        Total = 17 + 40 = 57 dimensions, strictly computed from the real image.
-        """
         self.initialize()
+        image_path = Path(image_path)
         key = str(image_path.resolve())
         if key in self._features_57d_cache:
             return self._features_57d_cache[key]
@@ -340,21 +596,156 @@ class ModelManager:
     def predict_pair(
         self,
         image_a_path: Path,
-        image_b_path: Path
+        image_b_path: Path,
+        strict_phase4: bool = False
     ) -> Dict[str, Any]:
         """
         Executes genuine pairwise prediction between Image A and Image B.
         Returns:
           related, related_confidence, direction, direction_confidence,
           transformation, transformation_confidence, cosine_similarity,
-          active_model, feature_vector_dim
+          active_model, feature_vector_dim, inference_path
         """
         self.initialize()
+        image_a_path = Path(image_a_path)
+        image_b_path = Path(image_b_path)
         emb_a = self.get_embedding(image_a_path)
         emb_b = self.get_embedding(image_b_path)
 
         # Base ViT cosine similarity
         cos_sim = float(F.cosine_similarity(emb_a.unsqueeze(0), emb_b.unsqueeze(0)).item())
+
+        # 0. Phase 4 Isolated Forensic MLP Pipeline (Behind Reversible Switch)
+        if self.phase4_enabled and self.phase4_loaded:
+            try:
+                f_a = self.get_57d_representation(image_a_path)
+                f_b = self.get_57d_representation(image_b_path)
+                vec_115_raw = build_115d_pair_feature(f_a, f_b).reshape(1, -1)
+                vec_115_s = self.phase4_scaler_115.transform(vec_115_raw)
+                t_115 = torch.from_numpy(vec_115_s).float().to(self.device)
+
+                with torch.no_grad():
+                    rel_logit = self.phase4_rel_model(t_115).item()
+                    rel_prob = float(torch.sigmoid(torch.tensor(rel_logit)).item())
+
+                # Local evidence & correspondence check (forensic sub-region containment)
+                from src.forensic_arbitrator import check_sub_region_containment, arbitrate_pair_direction, arbitrate_transformation
+                crop_score, crop_corr = check_sub_region_containment(image_a_path, image_b_path)
+
+                is_related = (rel_prob >= self.phase4_rel_threshold)
+
+                # Policy: Do not discard strong local evidence purely for low global similarity
+                if not is_related and abs(crop_score) > 0.5 and crop_corr >= 0.88:
+                    is_related = True
+                    rel_prob = max(rel_prob, crop_corr)
+
+                # Policy: Weak visual correspondence alone (< 0.25 cos_sim with no crop containment) cannot establish provenance
+                if is_related and cos_sim < 0.25 and abs(crop_score) < 0.3:
+                    is_related = False
+                    rel_prob = min(rel_prob, cos_sim)
+
+                arbitration_applied = False
+                if not is_related:
+                    dir_str = "NONE"
+                    dir_conf = round(1.0 - rel_prob, 4)
+                    tfm_str = "none"
+                    tfm_conf = round(1.0 - rel_prob, 4)
+                    compound_tags = []
+                    dir_rationale = "Unrelated pair"
+                else:
+                    # Direction inference via AntiSymmetric model
+                    f_ab = build_172d_direction_feature(f_a, f_b).reshape(1, -1)
+                    f_ba = build_172d_direction_feature(f_b, f_a).reshape(1, -1)
+                    sc_ab = self.phase4_scaler_172.transform(f_ab)
+                    sc_ba = self.phase4_scaler_172.transform(f_ba)
+                    t_ab = torch.from_numpy(sc_ab).float().to(self.device)
+                    t_ba = torch.from_numpy(sc_ba).float().to(self.device)
+
+                    with torch.no_grad():
+                        dir_logit = self.phase4_dir_model(t_ab, t_ba).item()
+                        prob_atob = float(torch.sigmoid(torch.tensor(dir_logit)).item())
+
+                    delta = abs(prob_atob - 0.5)
+                    if delta < self.phase4_dir_delta_uncertain:
+                        dir_str = "UNCERTAIN"
+                        dir_conf = round(prob_atob, 4)
+                    elif prob_atob >= 0.5:
+                        dir_str = "A_TO_B"
+                        dir_conf = round(prob_atob, 4)
+                    else:
+                        dir_str = "B_TO_A"
+                        dir_conf = round(1.0 - prob_atob, 4)
+
+                    # Multi-label transformation inference
+                    with torch.no_grad():
+                        tfm_logits = self.phase4_tfm_model(t_115)[0]
+                        tfm_probs = torch.sigmoid(tfm_logits).cpu().numpy()
+
+                    active_tags = []
+                    for idx, (p, th) in enumerate(zip(tfm_probs, self.phase4_tfm_thresholds)):
+                        if p >= th:
+                            active_tags.append(TRANSFORMATION_NAMES[idx])
+
+                    top_idx = int(np.argmax(tfm_probs))
+                    primary_tfm = TRANSFORMATION_NAMES[top_idx]
+                    tfm_conf = float(tfm_probs[top_idx])
+                    if not active_tags:
+                        active_tags = [primary_tfm]
+                    tfm_str = primary_tfm
+                    compound_tags = active_tags
+                    dir_rationale = "Phase 4 Antisymmetric Neural Flow"
+
+                    # Run forensic arbitrator for physical constraints
+                    raw_dir_before = dir_str
+                    raw_tfm_before = tfm_str
+                    try:
+                        f_raw_a = self.get_forensic_features(image_a_path)
+                        f_raw_b = self.get_forensic_features(image_b_path)
+                        dir_str, dir_conf, dir_rationale = arbitrate_pair_direction(
+                            image_a_path, image_b_path,
+                            f_raw_a, f_raw_b,
+                            dir_str, dir_conf, cos_sim, tfm_str
+                        )
+                        tfm_str, tfm_conf, compound_tags = arbitrate_transformation(
+                            image_a_path, image_b_path,
+                            f_raw_a, f_raw_b,
+                            tfm_str, tfm_conf, cos_sim, dir_str
+                        )
+                        if dir_str != raw_dir_before or tfm_str != raw_tfm_before:
+                            arbitration_applied = True
+                    except Exception as ex_arb:
+                        print(f"[ModelManager] Forensic arbitrator notice: {ex_arb}")
+
+                return {
+                    "related": is_related,
+                    "related_confidence": round(rel_prob, 4),
+                    "direction": dir_str,
+                    "direction_confidence": round(dir_conf, 4),
+                    "transformation": tfm_str,
+                    "transformation_confidence": round(tfm_conf, 4),
+                    "compound_tags": compound_tags,
+                    "direction_rationale": dir_rationale,
+                    "cosine_similarity": round(cos_sim, 4),
+                    "active_model": "Phase 4 Normalized Forensic MLP Pipeline (v1)",
+                    "feature_dim": 115,
+                    "inference_mode": "trained_model",
+                    "confidence_calibration": "uncalibrated_sigmoid",
+                    "decision_threshold_status": "validation_tuned",
+                    "fallback_reason": None,
+                    "inference_path": {
+                        "pipeline": "phase4_v1",
+                        "relationship_model": "Phase4RelationshipMLP",
+                        "direction_model": "Phase4DirectionMLP",
+                        "transformation_model": "Phase4TransformationMLP",
+                        "applied_arbitration": arbitration_applied,
+                        "is_fallback": False
+                    }
+                }
+            except Exception as e:
+                print(f"[ModelManager] Phase 4 inference error: {e}")
+                if strict_phase4:
+                    raise RuntimeError(f"Phase 4 inference failed under strict mode: {e}") from e
+                self.last_phase4_error = str(e)
 
         # 1. Scikit-learn 115-D Pipeline Prediction if loaded
         if self.sklearn_rel_model is not None:
@@ -437,8 +828,8 @@ class ModelManager:
                     tfm_str = "none"
                     tfm_conf = round(1.0 - rel_prob, 4)
                 else:
-                    tfm_str = "crop"
-                    tfm_conf = rel_prob
+                    tfm_str = "unresolved"
+                    tfm_conf = None
                     if self.sklearn_tfm_model is not None:
                         try:
                             tfm_input = vec_115
@@ -462,7 +853,7 @@ class ModelManager:
                         except Exception as ex:
                             print(f"[ModelManager] Transformation prediction notice: {ex}")
 
-                compound_tags = [tfm_str] if tfm_str != "none" else []
+                compound_tags = [tfm_str] if tfm_str not in ["none", "unresolved"] else []
                 dir_rationale = "Model prediction" if is_related else "Unrelated pair"
 
                 if is_related:
@@ -489,12 +880,21 @@ class ModelManager:
                     "direction": dir_str,
                     "direction_confidence": round(dir_conf, 4),
                     "transformation": tfm_str,
-                    "transformation_confidence": round(tfm_conf, 4),
+                    "transformation_confidence": round(tfm_conf, 4) if tfm_conf is not None else None,
                     "compound_tags": compound_tags,
                     "direction_rationale": dir_rationale,
                     "cosine_similarity": round(cos_sim, 4),
                     "active_model": f"Scikit-learn Pipeline ({self.sklearn_rel_name})",
-                    "feature_dim": 115
+                    "feature_dim": 115,
+                    "inference_mode": "trained_model",
+                    "confidence_calibration": "scikit_learn_predict_proba",
+                    "fallback_reason": self.phase4_fallback_reason if self.phase4_enabled else "Phase 4 models disabled by configuration",
+                    "inference_path": {
+                        "pipeline": "legacy_scikit_learn",
+                        "model_name": str(self.sklearn_rel_name),
+                        "is_fallback": True,
+                        "fallback_reason": getattr(self, "last_phase4_error", None) or (self.phase4_fallback_reason if self.phase4_enabled else "Phase 4 models disabled by configuration")
+                    }
                 }
             except Exception as e:
                 print(f"[ModelManager] Scikit-learn inference fallback: {e}")
@@ -542,21 +942,112 @@ class ModelManager:
                     "transformation_confidence": round(tfm_conf, 4),
                     "cosine_similarity": round(cos_sim, 4),
                     "active_model": f"PyTorch Multi-task Provenance ({MODEL_FILE.name})",
-                    "feature_dim": feat.shape[0]
+                    "feature_dim": feat.shape[0],
+                    "inference_mode": "trained_model",
+                    "confidence_calibration": "softmax_logits",
+                    "fallback_reason": self.phase4_fallback_reason if self.phase4_enabled else "Phase 4 models disabled by configuration",
+                    "inference_path": {
+                        "pipeline": "legacy_pytorch_multitask",
+                        "model_name": str(MODEL_FILE.name),
+                        "is_fallback": True,
+                        "fallback_reason": getattr(self, "last_phase4_error", None) or (self.phase4_fallback_reason if self.phase4_enabled else "Phase 4 models disabled by configuration")
+                    }
                 }
 
-        # 3. Fallback Cosine Similarity Heuristic
+        # 3. Fallback Cosine Similarity Heuristic with Grounded Forensic Arbitration
         related = cos_sim >= 0.65
+        fallback_msg = self.phase4_fallback_reason if self.phase4_enabled else "Phase 4 models disabled by configuration; heuristic applied"
+
+        dir_str = "UNCERTAIN" if related else "NONE"
+        dir_conf = 0.50 if related else 0.0
+        dir_rationale = "Direction unresolved: Insufficient asymmetric forensic evidence" if related else "Unrelated pair"
+        tfm_str = "unresolved" if related else "none"
+        tfm_conf = None if related else 0.0
+        compound_tags = []
+
+        # If sub-threshold (0.35 <= cos_sim < 0.65), check if strong forensic containment or geometry proves relationship
+        check_forensics = related or (0.35 <= cos_sim < 0.65)
+        if check_forensics:
+            try:
+                from src.forensic_arbitrator import arbitrate_pair_direction, arbitrate_transformation
+                f_a = self.get_forensic_features(image_a_path)
+                f_b = self.get_forensic_features(image_b_path)
+                f_dir_str, f_dir_conf, f_dir_rationale = arbitrate_pair_direction(
+                    image_a_path, image_b_path,
+                    f_a, f_b,
+                    "UNCERTAIN", 0.50, cos_sim, "none"
+                )
+                if "containment" in f_dir_rationale.lower() or "crop" in f_dir_rationale.lower():
+                    base_tfm_candidate = "crop"
+                elif "resize" in f_dir_rationale.lower() or "downscale" in f_dir_rationale.lower() or "scaling" in f_dir_rationale.lower():
+                    base_tfm_candidate = "resize"
+                elif "perspective" in f_dir_rationale.lower():
+                    base_tfm_candidate = "perspective"
+                elif "rotation" in f_dir_rationale.lower():
+                    base_tfm_candidate = "rotation"
+                else:
+                    base_tfm_candidate = "none"
+
+                f_tfm_str, f_tfm_conf, f_compound_tags = arbitrate_transformation(
+                    image_a_path, image_b_path,
+                    f_a, f_b,
+                    base_tfm_candidate, f_dir_conf, cos_sim, f_dir_str
+                )
+
+                # If subthreshold but physical forensic evidence confirmed containment, resizing, geometry, identity, or verified spectral blur:
+                if not related and (
+                    f_tfm_str in ["crop", "resize", "perspective", "rotation", "identity"]
+                    or (f_tfm_str == "blur" and f_tfm_conf is not None and float(f_tfm_conf) >= 0.88)
+                ):
+                    related = True
+                    dir_str = f_dir_str
+                    dir_conf = f_dir_conf
+                    dir_rationale = f_dir_rationale
+                    tfm_str = f_tfm_str
+                    tfm_conf = f_tfm_conf
+                    compound_tags = f_compound_tags
+                elif related:
+                    dir_str = f_dir_str
+                    dir_conf = f_dir_conf
+                    dir_rationale = f_dir_rationale
+                    tfm_str = f_tfm_str
+                    tfm_conf = f_tfm_conf
+                    compound_tags = f_compound_tags
+
+                if related:
+                    if tfm_str == "identity":
+                        dir_str = "UNCERTAIN"
+                        dir_conf = 0.50
+                        dir_rationale = "Identity: Images are identical or pixel-equivalent copies; directional ancestry cannot be determined"
+                    elif tfm_str in ["brightness", "contrast", "color"]:
+                        dir_str = "UNCERTAIN"
+                        dir_conf = 0.50
+                        dir_rationale = f"{tfm_str.capitalize()} variation: Symmetric photometric shift without irreversible structural loss"
+            except Exception as ex_arb:
+                print(f"[ModelManager] Fallback forensic arbitration notice: {ex_arb}")
+        initial_related = (cos_sim >= 0.65)
+        rel_conf = round(cos_sim if initial_related else (float(tfm_conf) if (related and tfm_conf is not None) else cos_sim), 4)
+
         return {
             "related": related,
-            "related_confidence": round(cos_sim, 4),
-            "direction": "A_TO_B" if related else "NONE",
-            "direction_confidence": round(cos_sim, 4),
-            "transformation": "crop" if related else "identity",
-            "transformation_confidence": round(cos_sim, 4),
+            "related_confidence": rel_conf,
+            "direction": dir_str,
+            "direction_confidence": round(dir_conf, 4),
+            "transformation": tfm_str,
+            "transformation_confidence": round(tfm_conf, 4) if tfm_conf is not None else None,
+            "compound_tags": compound_tags,
+            "direction_rationale": dir_rationale,
             "cosine_similarity": round(cos_sim, 4),
-            "active_model": "ViT-B/16 Cosine Similarity Heuristic",
-            "feature_dim": 768
+            "active_model": "ViT Cosine Heuristic + Forensic Arbitration",
+            "feature_dim": 768,
+            "inference_mode": "heuristic_fallback",
+            "confidence_calibration": "forensic_arbitration",
+            "fallback_reason": fallback_msg,
+            "inference_path": {
+                "pipeline": "heuristic_fallback",
+                "is_fallback": True,
+                "fallback_reason": getattr(self, "last_phase4_error", None) or fallback_msg
+            }
         }
 
     def compute_feature_sensitivity(self, path_a: Path, path_b: Path) -> Dict[str, Any]:
@@ -612,22 +1103,29 @@ class ModelManager:
     def get_status(self) -> Dict[str, Any]:
         """Provides full status of active and available models."""
         self.initialize()
+        active_rel = (
+            "Phase 4 Normalized Forensic MLP Pipeline (v1)" if self.phase4_enabled and self.phase4_loaded
+            else (f"Scikit-learn ({self.sklearn_rel_name})" if self.sklearn_rel_model
+            else (f"PyTorch Multi-task ({MODEL_FILE.name})" if self.classifier
+            else "ViT Cosine Heuristic"))
+        )
+        active_dir = (
+            "Phase 4 Antisymmetric Direction MLP (v1)" if self.phase4_enabled and self.phase4_loaded
+            else ("Antisymmetric Direction MLP (antisymmetric_direction_model.pt)" if self.anti_dir_model is not None
+            else (f"Scikit-learn ({self.sklearn_dir_name})" if self.sklearn_dir_model else "Heuristic"))
+        )
         return {
             "device": str(self.device),
+            "phase4_models_enabled": self.phase4_enabled,
+            "phase4_models_loaded": self.phase4_loaded,
+            "phase4_fallback_reason": self.phase4_fallback_reason,
             "vit_embedder_loaded": self.embedder is not None,
             "pytorch_multitask_loaded": self.classifier is not None,
             "pytorch_research_loaded": self.research_models is not None,
             "sklearn_pipeline_detected": self.sklearn_rel_model is not None,
             "sklearn_pipeline_name": self.sklearn_rel_name,
-            "active_relationship_model": (
-                f"Scikit-learn ({self.sklearn_rel_name})" if self.sklearn_rel_model
-                else (f"PyTorch Multi-task ({MODEL_FILE.name})" if self.classifier
-                else "ViT Cosine Heuristic")
-            ),
-            "active_direction_model": (
-                "Antisymmetric Direction MLP (antisymmetric_direction_model.pt)" if self.anti_dir_model is not None
-                else (f"Scikit-learn ({self.sklearn_dir_name})" if self.sklearn_dir_model else "Heuristic")
-            ),
+            "active_relationship_model": active_rel,
+            "active_direction_model": active_dir,
             "colab_search_path": str(COLAB_MODELS_PATH),
             "local_models_dir": str(MODELS_DIR),
             "supported_115d_feature": True,

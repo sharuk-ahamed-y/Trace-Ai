@@ -82,7 +82,7 @@ export default function PairwiseAnalysisView({ initialImages }) {
         <button
           onClick={handlePredictPair}
           disabled={loading || !selectedA || !selectedB}
-          className="bg-[#39FF88] hover:bg-[#39FF88]/90 text-black font-bold px-6 py-2.5 rounded-full text-xs font-mono flex items-center space-x-2 shadow-[0_0_20px_rgba(57,255,136,0.3)] disabled:opacity-50 transition-all cursor-pointer"
+          className="bg-gold-gradient hover:opacity-95 text-black font-bold px-6 py-2.5 rounded-full text-xs font-mono flex items-center space-x-2 shadow-gold-glow disabled:opacity-50 transition-all cursor-pointer"
         >
           {loading ? (
             <>
@@ -91,7 +91,7 @@ export default function PairwiseAnalysisView({ initialImages }) {
             </>
           ) : (
             <>
-              <Sparkles className="w-4 h-4" />
+              <Sparkles className="w-4 h-4 fill-black text-black" />
               <span>Run Pairwise Analysis</span>
             </>
           )}

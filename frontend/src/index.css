@@ -6,8 +6,8 @@
 
 @layer base {
   body {
-    background-color: #070909;
-    color: #F4F7F5;
+    background-color: #05070B;
+    color: #F8FAFC;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     overflow-x: hidden;
   }
@@ -17,69 +17,168 @@
   }
 }
 
-/* Custom technical scrollbar */
+/* Custom premium scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #070909;
+  background: #05070B;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #171E1A;
+  background: #141C2E;
   border-radius: 4px;
+  border: 1px solid rgba(212, 175, 55, 0.15);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #39FF88;
+  background: #D4AF37;
 }
 
-/* Technical forensic cyber grid */
+/* Forensic cyber particle & grid background */
 .forensic-grid {
-  background-size: 32px 32px;
+  background-size: 40px 40px;
   background-image: 
-    linear-gradient(to right, rgba(26, 40, 34, 0.4) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(26, 40, 34, 0.4) 1px, transparent 1px);
+    linear-gradient(to right, rgba(212, 175, 55, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(212, 175, 55, 0.05) 1px, transparent 1px);
 }
 
 .forensic-grid-dense {
-  background-size: 16px 16px;
+  background-size: 20px 20px;
   background-image: 
-    linear-gradient(to right, rgba(53, 217, 255, 0.08) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(53, 217, 255, 0.08) 1px, transparent 1px);
+    linear-gradient(to right, rgba(0, 242, 254, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 242, 254, 0.06) 1px, transparent 1px);
 }
 
-/* Glow and gradient utilities */
-.glow-neon {
-  box-shadow: 0 0 25px rgba(57, 255, 136, 0.28);
+/* Cosmic particle canvas styling */
+.cosmic-canvas {
+  background: radial-gradient(circle at 50% 30%, rgba(212, 175, 55, 0.08) 0%, transparent 60%),
+              radial-gradient(circle at 80% 80%, rgba(0, 242, 254, 0.05) 0%, transparent 50%),
+              #05070B;
 }
 
-.glow-lime {
-  box-shadow: 0 0 25px rgba(215, 255, 50, 0.28);
+/* Layered glass surfaces */
+.glass-panel {
+  background: rgba(12, 16, 27, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(212, 175, 55, 0.15);
+}
+
+.glass-panel-elevated {
+  background: rgba(16, 22, 36, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(212, 175, 55, 0.25);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 20px rgba(212, 175, 55, 0.08);
+}
+
+.glass-card {
+  background: linear-gradient(180deg, rgba(16, 22, 36, 0.7) 0%, rgba(8, 12, 20, 0.85) 100%);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(212, 175, 55, 0.14);
+}
+
+.glass-card-hover {
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-card-hover:hover {
+  border-color: rgba(229, 193, 88, 0.45);
+  transform: translateY(-2px);
+  box-shadow: 0 14px 35px rgba(0, 0, 0, 0.7), 0 0 25px rgba(212, 175, 55, 0.18);
+}
+
+/* Glow effects */
+.glow-gold {
+  box-shadow: 0 0 25px rgba(212, 175, 55, 0.3);
+}
+
+.glow-gold-lg {
+  box-shadow: 0 0 45px rgba(212, 175, 55, 0.45);
 }
 
 .glow-cyan {
-  box-shadow: 0 0 25px rgba(53, 217, 255, 0.28);
+  box-shadow: 0 0 25px rgba(0, 242, 254, 0.3);
 }
 
-.glow-subtle {
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+.glow-cyan-lg {
+  box-shadow: 0 0 45px rgba(0, 242, 254, 0.45);
 }
 
-/* Pulse badge animation */
-@keyframes pulseGlow {
+/* Champagne gold text gradient */
+.text-gradient-gold {
+  background: linear-gradient(135deg, #FFF6D6 0%, #F5E5B8 25%, #E5C158 55%, #D4AF37 80%, #A88424 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.text-gradient-cyan {
+  background: linear-gradient(135deg, #E0F7FF 0%, #00F2FE 50%, #00C2FF 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Orbital ring rotation */
+@keyframes orbitalRotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes orbitalRotateReverse {
+  from {
+    transform: rotate(360deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+.animate-orbital {
+  animation: orbitalRotate 30s linear infinite;
+}
+
+.animate-orbital-reverse {
+  animation: orbitalRotateReverse 24s linear infinite;
+}
+
+/* Floating animation */
+@keyframes subtleFloat {
   0%, 100% {
-    opacity: 1;
-    transform: scale(1);
+    transform: translateY(0px);
   }
   50% {
-    opacity: 0.6;
-    transform: scale(1.1);
+    transform: translateY(-8px);
   }
 }
 
-.animate-pulse-glow {
-  animation: pulseGlow 2.5s infinite ease-in-out;
+.animate-float {
+  animation: subtleFloat 5s ease-in-out infinite;
+}
+
+.animate-float-delayed {
+  animation: subtleFloat 6s ease-in-out infinite 1.5s;
+}
+
+/* Pulse Glow animation */
+@keyframes pulseGoldGlow {
+  0%, 100% {
+    opacity: 0.8;
+    filter: drop-shadow(0 0 10px rgba(212, 175, 55, 0.4));
+  }
+  50% {
+    opacity: 1;
+    filter: drop-shadow(0 0 22px rgba(229, 193, 88, 0.8));
+  }
+}
+
+.animate-pulse-gold {
+  animation: pulseGoldGlow 3s infinite ease-in-out;
 }

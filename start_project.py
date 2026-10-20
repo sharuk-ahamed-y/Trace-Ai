@@ -10,6 +10,8 @@ from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parent
 PYTHON_EXE = ROOT_DIR / ".venv" / "Scripts" / "python.exe"
+if not PYTHON_EXE.exists():
+    PYTHON_EXE = Path(sys.executable)
 
 def main():
     print("==================================================")

@@ -37,9 +37,9 @@ export default function ForestAnalysisView({ analysisData, setActiveTab }) {
 
   const nodes = analysisData.nodes || [];
   const edges = analysisData.edges || [];
-  const candidatePairs = analysisData.candidate_pairs || [];
+  const candidatePairs = analysisData.candidate_edges || analysisData.candidate_pairs || [];
   const components = analysisData.components || [];
-  const rootNode = analysisData.root_node;
+  const rootNode = analysisData.root_image_id || analysisData.root_node || (nodes.find(n => n.is_root)?.id);
   const analysisId = analysisData.analysis_id || 'ANALYSIS-ACTIVE';
 
   // Compute stats
@@ -169,9 +169,9 @@ export default function ForestAnalysisView({ analysisData, setActiveTab }) {
               {candidatePairs.length > 0 ? (
                 candidatePairs.slice(0, 8).map((cp, idx) => (
                   <div key={idx} className="flex items-center justify-between p-2 rounded bg-[#111916] border border-[#1A2822]/60">
-                    <span className="text-white truncate max-w-[180px]">{cp.source_id} &harr; {cp.target_id}</span>
+                    <span className="text-white truncate max-w-[180px]">{(cp.source_id || cp.source || cp.u)} &harr; {(cp.target_id || cp.target || cp.v)}</span>
                     <span className="text-[#9AA8A0] text-[11px]">
-                      P: <span className="text-[#39FF88] font-bold">{(cp.probability * 100).toFixed(1)}%</span>
+                      P: <span className="text-[#39FF88] font-bold">{((cp.related_prob || cp.probability || 0.9) * 100).toFixed(1)}%</span>
                     </span>
                   </div>
                 ))
@@ -217,14 +217,16 @@ export default function ForestAnalysisView({ analysisData, setActiveTab }) {
                   <div key={idx} className="flex items-center justify-between p-2 rounded bg-[#111916] border border-[#39FF88]/20">
                     <div className="flex items-center space-x-2 truncate max-w-[200px]">
                       <span className="text-[#39FF88] font-bold text-[10px]">#{idx + 1}</span>
-                      <span className="text-white truncate">{e.source_id} &rarr; {e.target_id}</span>
+                      <span className="text-white truncate">{(e.source_id || e.source)} &rarr; {(e.target_id || e.target)}</span>
                     </div>
                     <div className="flex items-center space-x-3 text-[11px]">
                       <span className="text-[#35D9FF] bg-[#35D9FF]/10 px-1.5 py-0.5 rounded border border-[#35D9FF]/30 text-[9px] uppercase">
                         {e.transformation}
                       </span>
-                      <span className="text-[#39FF88] font-bold">
-                        {((e.confidence || 0.9) * 100).toFixed(0)}%
+                      <span className={e.transformation_confidence !== undefined && e.transformation_confidence !== null ? "text-[#39FF88] font-bold" : "text-[#E6B800] font-bold"}>
+                        {e.transformation_confidence !== undefined && e.transformation_confidence !== null
+                          ? `${(e.transformation_confidence * 100).toFixed(0)}%`
+                          : "N/A"}
                       </span>
                     </div>
                   </div>
